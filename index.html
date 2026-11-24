@@ -247,6 +247,17 @@ a{color:inherit}
 .tc .em{padding:1.4em .6em;text-align:center;color:var(--mute);font:600 1.1em var(--fd)}
 .tvbig{margin:auto;text-align:center;font:700 1.4em var(--fd);color:var(--mute);max-width:30em;line-height:1.4}
 @media(max-width:900px){.tv{overflow:auto}.tvm{grid-template-columns:1fr}.tvh h1{font-size:1.6em}.tvh .ck2{font-size:1.8em}.tvh{flex-wrap:wrap}}
+.ql{display:grid;gap:8px}
+.qr{display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--line);border-radius:14px;background:#fff}
+.qr img{flex:none;width:46px;height:46px;border-radius:10px;object-fit:cover}
+.qr span{flex:1;min-width:0;font:600 14px/1.2 var(--fd)}
+.qr b{min-width:30px;text-align:center;font:800 18px var(--fd)}
+.qb{flex:none;width:42px;height:42px;padding:0;border-radius:50%;border:1.5px solid var(--line);background:#fff;font:700 22px/1 var(--fd);color:var(--amd)}
+.qb.p{background:var(--am);border-color:var(--am);color:#2A1B00}
+.dq{position:relative;display:inline-block}
+.dq i{position:absolute;right:-5px;top:-5px;min-width:20px;height:20px;padding:0 5px;border-radius:99px;background:#2A1B00;color:#fff;font:800 11px/20px var(--fd);font-style:normal;text-align:center}
+.to .dd figure{position:relative}
+.to .dd .qn{position:absolute;right:.25em;top:.25em;min-width:1.6em;padding:.1em .45em;border-radius:99px;background:#2A1B00;color:#fff;font:800 1.05em/1.3 var(--fd);text-align:center}
 /* install */
 .inst{display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px 10px 12px 14px;border-radius:20px;background:var(--cream);border:1.5px solid #F7E4B6}
 .inst i{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;color:var(--amd);box-shadow:0 3px 10px rgba(80,55,10,.08)}
@@ -615,7 +626,7 @@ function adOrders(){
 function itemById(id){return BYID[id]||(DRAFT&&DRAFT.items.filter(function(i){return i.id===id})[0])||null}
 function dishThumbs(o,n){
   var a=(o.dishes||[]).filter(function(id){return itemById(id)});
-  return a.length?'<div class="dth">'+a.slice(0,n).map(function(id){var it=itemById(id);return '<img src="'+esc(srcOf(it))+'" alt="'+esc(labelOf(it))+'">'}).join('')+(a.length>n?'<span class="m">+'+(a.length-n)+'</span>':'')+'</div>':'';
+  return a.length?'<div class="dth">'+a.slice(0,n).map(function(id){var it=itemById(id),q=(o.qty&&o.qty[id])||1;return '<span class="dq"><img src="'+esc(srcOf(it))+'" alt="'+esc(labelOf(it))+'">'+(q>1?'<i>×'+q+'</i>':'')+'</span>'}).join('')+(a.length>n?'<span class="m">+'+(a.length-n)+'</span>':'')+'</div>':'';
 }
 function orderCard(o){
   var dg=String(o.phone||'').replace(/\D/g,'');
@@ -707,22 +718,27 @@ function ordSheet(){
   '<div class="f"><label for="o-phone">Телефон</label><input id="o-phone" type="tel" inputmode="tel" value="'+esc(OF.phone)+'"></div>'+
   '<div class="two"><div class="f"><label for="o-date">Дата</label><input id="o-date" type="date" value="'+esc(OF.date)+'"></div><div class="f"><label for="o-time">Время</label><input id="o-time" type="time" value="'+esc(OF.time)+'"></div></div>'+
   '<div class="two"><div class="f"><label for="o-type">Как получить</label><select id="o-type">'+['На вынос','Доставка'].map(function(x){return '<option'+(OF.type===x?' selected':'')+'>'+x+'</option>'}).join('')+'</select></div><div class="f"><label for="o-guests">Гостей</label><input id="o-guests" type="number" inputmode="numeric" value="'+esc(OF.guests)+'"></div></div>'+
-  '<div class="f"><label>Блюда ('+OF.dishes.length+')</label>'+dishThumbs(OF,16)+'<button class="sm" data-act="pickopen" style="justify-self:start">Выбрать из меню</button></div>'+
+  '<div class="f"><label>Блюда ('+OF.dishes.length+')</label>'+qtyList()+'<button class="sm" data-act="pickopen" style="justify-self:start">'+(OF.dishes.length?'Добавить ещё блюда':'Выбрать из меню')+'</button></div>'+
   '<div class="f"><label for="o-note">Комментарий для кухни</label><textarea id="o-note" placeholder="Количество, пожелания, адрес">'+esc(OF.note)+'</textarea></div>'+
   '<div class="f"><label for="o-sum">Сумма</label><input id="o-sum" value="'+esc(OF.sum)+'" placeholder="Например, 450 000 ₸"></div>'+
   '<label class="ck"><input type="checkbox" id="o-busy"'+(OF._busy?' checked':'')+'> Отметить дату занятой в календаре</label>'+
   '<div class="row"><button class="sm p" data-act="ordsave">Сохранить</button><button class="sm" data-act="sheetclose">Отмена</button>'+(OF._new?'':'<button class="sm d" data-act="orddel">'+(OF._del?'Точно удалить?':'Удалить')+'</button>')+'</div>');
+}
+function qtyList(){
+  var a=OF.dishes.filter(function(id){return itemById(id)});
+  if(!a.length)return '<div class="m">Блюда не выбраны</div>';
+  return '<div class="ql">'+a.map(function(id){var it=itemById(id),q=OF.qty[id]||1;return '<div class="qr"><img src="'+esc(srcOf(it))+'" alt=""><span>'+esc(labelOf(it))+'</span><button class="qb" data-qd="'+esc(id)+'" aria-label="Меньше">'+(q>1?'−':'×')+'</button><b>'+q+'</b><button class="qb p" data-qi="'+esc(id)+'" aria-label="Больше">+</button></div>'}).join('')+'</div>';
 }
 function ordRead(){
   if(!$('#o-name'))return;
   ['name','phone','date','time','type','guests','note','sum'].forEach(function(k){OF[k]=$('#o-'+k).value.trim()});OF._busy=$('#o-busy').checked;
 }
 function ordNew(date){
-  OF={id:'o'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:'',phone:'',date:date||todayS(),time:'',type:'На вынос',guests:'',dishes:[],note:'',sum:'',status:'new',ts:Date.now(),_new:true,_busy:true};ordSheet();
+  OF={id:'o'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:'',phone:'',date:date||todayS(),time:'',type:'На вынос',guests:'',dishes:[],qty:{},note:'',sum:'',status:'new',ts:Date.now(),_new:true,_busy:true};ordSheet();
 }
 function ordEdit(id){
   var o=OS.list.filter(function(x){return x.id===id})[0];if(!o)return;
-  OF=Object.assign({name:'',phone:'',date:'',time:'',type:'',guests:'',dishes:[],note:'',sum:'',status:'new'},o);OF.dishes=(o.dishes||[]).slice();OF._busy=!!(DRAFT.busy[o.date]);ordSheet();
+  OF=Object.assign({name:'',phone:'',date:'',time:'',type:'',guests:'',dishes:[],note:'',sum:'',status:'new'},o);OF.dishes=(o.dishes||[]).slice();OF.qty=Object.assign({},o.qty||{});OF._busy=!!(DRAFT.busy[o.date]);ordSheet();
 }
 function pickSheet(){
   var q=OPK.cat,its=DRAFT.items.filter(function(i){return !i.hid&&(q==='all'||i.cat===q)});
@@ -742,10 +758,10 @@ function openTv(){
   if(!IN_CLAUDE&&!LS.get('assorti.pin','')){pinForm(box,'tv');return}
   osStart();tvRender();tvAuto();clearInterval(tvTimer);tvTimer=setInterval(function(){if(!$('#tvv').hidden)tvRender()},20000);
 }
-function tvDish(id){var it=itemById(id);return it?'<figure><img src="'+esc(srcOf(it))+'" alt=""><figcaption>'+esc(labelOf(it))+'</figcaption></figure>':''}
+function tvDish(id,q){var it=itemById(id);return it?'<figure><img src="'+esc(srcOf(it))+'" alt="">'+(q>1?'<span class="qn">×'+q+'</span>':'')+'<figcaption>'+esc(labelOf(it))+(q>1?' ×'+q:'')+'</figcaption></figure>':''}
 function tvOrder(o,compact){
   return '<div class="to"><div class="h"><b>'+esc(o.name||'Без имени')+'</b><span>'+(compact?esc(fmtD(o.date)):esc(o.time||''))+'</span></div><div class="m">'+esc(o.type||'')+(o.guests?' · '+esc(o.guests)+' гостей':'')+(compact&&o.time?' · '+esc(o.time):'')+'</div>'+
-  (compact?'':'<div class="dd">'+(o.dishes||[]).map(tvDish).join('')+'</div>')+(o.note&&!compact?'<div class="nt">'+esc(o.note)+'</div>':'')+'</div>';
+  (compact?'':'<div class="dd">'+(o.dishes||[]).map(function(id){return tvDish(id,(o.qty||{})[id]||1)}).join('')+'</div>')+(o.note&&!compact?'<div class="nt">'+esc(o.note)+'</div>':'')+'</div>';
 }
 function tvRender(){
   var box=$('#tvv');if(box.hidden)return;
@@ -753,7 +769,7 @@ function tvRender(){
   var today=L.filter(function(o){return o.date===t&&o.status!=='done'});
   var col=function(st,title){var a=today;return '<section class="tc '+st+'"><h2><span>'+title+'</span><span>'+a.length+'</span></h2><div class="bd">'+(a.length?a.map(function(o){return tvOrder(o)}).join(''):'<div class="em">Пусто</div>')+'</div></section>'};
   var nx=L.filter(function(o){return o.date>t&&o.status!=='done'}).slice(0,8);
-  var h='<div class="tvh"><h1>Заказы на сегодня</h1><span class="dt">'+esc(fmtL(t))+'</span><span class="ck2">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</span><button class="sm x" data-inst="fs">Во весь экран</button><a class="sm" href="#admin">Админка</a><button class="sm" data-act="adclose">Выйти</button></div>';
+  var h='<div class="tvh"><h1>Заказы на сегодня</h1><span class="dt">'+esc(fmtL(t))+'</span><span class="ck2">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</span><button class="sm x" data-inst="fs">'+(document.fullscreenElement||document.webkitFullscreenElement?'Свернуть':'Во весь экран')+'</button><a class="sm" href="#admin">Админка</a><button class="sm" data-act="adclose">Выйти</button></div>';
   if(OS.err)h+='<div class="note">Нет связи с хранилищем заказов.</div>';
   if(OS.mode==='local')h+='<div class="note">Экран работает без общего входа: показаны только заказы, созданные на этом устройстве.</div>';
   h+='<div class="tvm">'+col('new','Новые')+'<section class="tc next"><h2><span>Ближайшие дни</span></h2><div class="bd">'+(nx.length?nx.map(function(o){return tvOrder(o,true)}).join(''):'<div class="em">Заказов на ближайшие дни нет</div>')+'</div></section></div>';
@@ -792,7 +808,7 @@ document.addEventListener('click',function(e){
   if(t=e.target.closest('[data-day]')){AD.day=t.dataset.day;adRender();return}
   if(t=e.target.closest('[data-itedit]')){ITNEW=false;ITDEL=false;IT=Object.assign({},DRAFT.items.filter(function(i){return i.id===t.dataset.itedit})[0]);itSheet();return}
   if(t=e.target.closest('[data-pkcat]')){OPK.cat=t.dataset.pkcat;pickSheet();return}
-  if(t=e.target.closest('[data-pk]')){var id=t.dataset.pk,i=OF.dishes.indexOf(id);if(i>=0)OF.dishes.splice(i,1);else OF.dishes.push(id);pickSheet();return}
+  if(t=e.target.closest('[data-pk]')){var id=t.dataset.pk,i=OF.dishes.indexOf(id);OF.qty=OF.qty||{};if(i>=0){OF.dishes.splice(i,1);delete OF.qty[id]}else OF.dishes.push(id);pickSheet();return}
   if(t=e.target.closest('[data-act]')){
     var a=t.dataset.act;
     if(a==='lbclose')lbClose();else if(a==='lbnext')lbGo(lbI+1);else if(a==='lbprev')lbGo(lbI-1);
@@ -813,7 +829,7 @@ document.addEventListener('click',function(e){
     else if(a==='ordsave'){ordRead();
       if(!OF.name){toast('Напишите имя клиента.');return}
       if(!OF.date){toast('Выберите дату.');return}
-      var o={id:OF.id,name:OF.name,phone:OF.phone,date:OF.date,time:OF.time,type:OF.type,guests:OF.guests,dishes:OF.dishes,note:OF.note,sum:OF.sum,status:OF.status||'new',ts:OF.ts||Date.now()};
+      var qq={};OF.dishes.forEach(function(id){if((OF.qty||{})[id]>1)qq[id]=OF.qty[id]});var o={id:OF.id,name:OF.name,phone:OF.phone,date:OF.date,time:OF.time,type:OF.type,guests:OF.guests,dishes:OF.dishes,qty:qq,note:OF.note,sum:OF.sum,status:OF.status||'new',ts:OF.ts||Date.now()};
       var wasBusy=!!DRAFT.busy[o.date],msg='Заказ сохранён';
       if(OF._busy&&!wasBusy){DRAFT.busy[o.date]=1;saveDraft();msg='Заказ сохранён. Нажмите «Опубликовать», чтобы дата стала занятой для клиентов.'}
       osUpsert(o);closeSheet();toast(msg)}
@@ -830,6 +846,13 @@ document.addEventListener('keydown',function(e){
 $('#more').addEventListener('click',function(){shown+=STEP;renderMenu()});
 $('#sheet').addEventListener('click',function(e){if(e.target.id==='sheet')closeSheet()});
 
+document.addEventListener('click',function(e){
+  var t=e.target.closest('[data-qi],[data-qd]');if(!t||!OF)return;e.preventDefault();ordRead();OF.qty=OF.qty||{};
+  if(t.dataset.qi){var id=t.dataset.qi;OF.qty[id]=(OF.qty[id]||1)+1}
+  else{var d=t.dataset.qd,q=OF.qty[d]||1;if(q>1)OF.qty[d]=q-1;else{OF.dishes=OF.dishes.filter(function(x){return x!==d});delete OF.qty[d]}}
+  ordSheet();
+});
+['fullscreenchange','webkitfullscreenchange'].forEach(function(ev){document.addEventListener(ev,function(){if(!$('#tvv').hidden)tvRender()})});
 /* ---------- shared state + PIN (public version) ---------- */
 function applyState(st){STATE=st;STATE.busy=STATE.busy||{};ALL=STATE.items||[];BYID=mk(ALL);ITEMS=ALL.filter(function(i){return !i.hid});Object.keys(ST.sel).forEach(function(k){if(!BYID[k])delete ST.sel[k]});renderChips();renderMenu();renderSel();busyCheck()}
 function pinForm(box,w){
