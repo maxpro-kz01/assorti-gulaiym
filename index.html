@@ -215,10 +215,10 @@ a{color:inherit}
 .ck input{width:22px;height:22px;accent-color:#F6A81C}
 .pk{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 @media(min-width:600px){.pk{grid-template-columns:repeat(4,1fr)}}
-.pk button{position:relative;padding:0;border:0;border-radius:14px;overflow:hidden;background:var(--soft)}
+.pk button[data-pk]{width:100%;position:relative;padding:0;border:0;border-radius:14px;overflow:hidden;background:var(--soft)}
 .pk img{width:100%;aspect-ratio:1;object-fit:cover}
-.pk button.on{outline:3px solid var(--am);outline-offset:-3px}
-.pk button.on:after{content:"✓";position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:50%;background:var(--am);color:#2A1B00;font:800 14px/24px var(--fd)}
+.pk button[data-pk].on{outline:3px solid var(--am);outline-offset:-3px}
+.pk button[data-pk].on:after{content:"✓";position:absolute;right:6px;top:6px;width:24px;height:24px;border-radius:50%;background:var(--am);color:#2A1B00;font:800 14px/24px var(--fd)}
 .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0));transform:translateX(-50%);z-index:200;max-width:min(90%,420px);padding:12px 18px;border-radius:18px;text-align:center;background:#2A1B00;color:#fff;font:600 14px var(--fd);box-shadow:0 8px 24px rgba(0,0,0,.3)}
 /* tv */
 .tv{font-size:clamp(14px,1.25vw,34px);background:#FBF8F1;display:flex;flex-direction:column;padding:1.2em 1.6em 1.4em;gap:1em;overflow:hidden}
@@ -271,6 +271,12 @@ a{color:inherit}
 .rr b{font:800 15.5px/1.25 var(--fd)}
 .rr .m{grid-column:1/-1;color:var(--mute);font-size:13.5px}
 .rr .v{font:800 15.5px var(--fd);color:var(--amd);white-space:nowrap;text-align:right}
+.pkt{display:grid;gap:6px;align-content:start}
+.pkn{font:600 12px/1.2 var(--fd);color:var(--mute);text-align:center;overflow-wrap:anywhere}
+.pkq{display:flex;align-items:center;justify-content:space-between;gap:4px;padding:3px;border-radius:99px;background:var(--cream)}
+.pkq .qb{width:38px;height:38px;font-size:20px}
+.pkq b{font:800 17px var(--fd)}
+.pkdone{position:sticky;bottom:0;z-index:2;min-height:48px;box-shadow:0 -8px 16px #fff}
 /* install */
 .inst{display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px 10px 12px 14px;border-radius:20px;background:var(--cream);border:1.5px solid #F7E4B6}
 .inst i{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;color:var(--amd);box-shadow:0 3px 10px rgba(80,55,10,.08)}
@@ -784,9 +790,11 @@ function ordEdit(id){
   OF=Object.assign({name:'',phone:'',date:'',time:'',type:'',guests:'',dishes:[],note:'',sum:'',status:'new'},o);OF.dishes=(o.dishes||[]).slice();OF.qty=Object.assign({},o.qty||{});OF._busy=!!(DRAFT.busy[o.date]);ordSheet();
 }
 function pickSheet(){
+  var sb=$('#sheet>div'),keep=(!$('#sheet').hidden&&sb&&$('#sheet .pk'))?sb.scrollTop:0;
+  setTimeout(function(){var b=$('#sheet>div');if(b&&keep)b.scrollTop=keep},0);
   var q=OPK.cat,its=DRAFT.items.filter(function(i){return !i.hid&&(q==='all'||i.cat===q)});
   var chips=[['all','Все']].concat(DATA.cats);
-  openSheet('<h3>Блюда в заказе: '+OF.dishes.length+'</h3><div class="fl">'+chips.map(function(c){return '<button class="chip'+(q===c[0]?' on':'')+'" data-pkcat="'+c[0]+'">'+esc(c[1])+'</button>'}).join('')+'</div><div class="pk">'+its.map(function(i){return '<button data-pk="'+esc(i.id)+'" class="'+(OF.dishes.indexOf(i.id)>=0?'on':'')+'" aria-label="'+esc(labelOf(i))+'"><img src="'+esc(srcOf(i))+'" alt="" loading="lazy"></button>'}).join('')+'</div><button class="sm p" data-act="pickdone">Готово</button>');
+  openSheet('<h3>Блюда в заказе: '+OF.dishes.length+'</h3><div class="fl">'+chips.map(function(c){return '<button class="chip'+(q===c[0]?' on':'')+'" data-pkcat="'+c[0]+'">'+esc(c[1])+'</button>'}).join('')+'</div><div class="pk">'+its.map(function(i){var on=OF.dishes.indexOf(i.id)>=0,q=(OF.qty||{})[i.id]||1;return '<div class="pkt"><button data-pk="'+esc(i.id)+'" class="'+(on?'on':'')+'" aria-label="'+esc(labelOf(i))+'"><img src="'+esc(srcOf(i))+'" alt="" loading="lazy"></button>'+(on?'<div class="pkq"><button class="qb" data-qd="'+esc(i.id)+'" aria-label="'+(q>1?'Меньше':'Убрать')+'">'+(q>1?'−':'×')+'</button><b>'+q+'</b><button class="qb p" data-qi="'+esc(i.id)+'" aria-label="Больше">+</button></div>':'<div class="pkn">'+esc(labelOf(i))+'</div>')+'</div>'}).join('')+'</div><button class="sm p pkdone" data-act="pickdone">Готово</button>');
 }
 
 /* =====================================================================
@@ -892,10 +900,10 @@ $('#sheet').addEventListener('click',function(e){if(e.target.id==='sheet')closeS
 
 document.addEventListener('click',function(e){var t=e.target.closest('[data-rper]');if(!t)return;AD.rper=t.dataset.rper;adRender()});
 document.addEventListener('click',function(e){
-  var t=e.target.closest('[data-qi],[data-qd]');if(!t||!OF)return;e.preventDefault();ordRead();OF.qty=OF.qty||{};
+  var t=e.target.closest('[data-qi],[data-qd]');if(!t||!OF)return;e.preventDefault();var inPick=!!$('#sheet .pk');if(!inPick)ordRead();OF.qty=OF.qty||{};
   if(t.dataset.qi){var id=t.dataset.qi;OF.qty[id]=(OF.qty[id]||1)+1}
   else{var d=t.dataset.qd,q=OF.qty[d]||1;if(q>1)OF.qty[d]=q-1;else{OF.dishes=OF.dishes.filter(function(x){return x!==d});delete OF.qty[d]}}
-  ordSheet();
+  if(inPick)pickSheet();else ordSheet();
 });
 ['fullscreenchange','webkitfullscreenchange'].forEach(function(ev){document.addEventListener(ev,function(){if(!$('#tvv').hidden)tvRender()})});
 document.addEventListener('click',function(e){
