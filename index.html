@@ -391,7 +391,7 @@ var $=function(s,r){return (r||document).querySelector(s)};
 var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
 var LS={get:function(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del:function(k){try{localStorage.removeItem(k)}catch(e){}}};
 var API='https://br-broad-thunder-bhv7ishh-assorti.compute.c-10.eu-central-1.aws.neon.tech';
-function api(m,p,b){var h={'Content-Type':'application/json'},pin=LS.get('assorti.pin','')||LS.get('assorti.kpin','');if(pin)h['X-Pin']=pin;return fetch(API+p,{method:m,headers:h,body:b?JSON.stringify(b):undefined,cache:'no-store'}).then(function(r){if(r.status===401){var e=new Error('pin');e.pin=1;throw e}if(!r.ok)throw new Error('http '+r.status);return r.json()})}
+function api(m,p,b,px){var h={'Content-Type':'application/json'},pin=px||LS.get('assorti.pin','')||LS.get('assorti.kpin','');if(pin)h['X-Pin']=pin;return fetch(API+p,{method:m,headers:h,body:b?JSON.stringify(b):undefined,cache:'no-store'}).then(function(r){if(r.status===401){var e=new Error('pin');e.pin=1;throw e}if(!r.ok)throw new Error('http '+r.status);return r.json()})}
 var CATN={};DATA.cats.forEach(function(c){CATN[c[0]]=c[1]});
 var pad=function(n){return String(n).padStart(2,'0')};
 var ymd=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
@@ -629,7 +629,7 @@ function openAdmin(){
   adRender();
 }
 var LEFT=false;
-function closeAdmin(){LEFT=true;clearInterval(tvTimer);showLayer('#adm',false);showLayer('#tvv',false);$('#sheet').hidden=true;try{if(location.hash==='#admin'||location.hash==='#tv')location.hash='top'}catch(e){}}
+function closeAdmin(){LEFT=true;AD.repOk=false;if(AD.tab==='rep')AD.tab='orders';clearInterval(tvTimer);showLayer('#adm',false);showLayer('#tvv',false);$('#sheet').hidden=true;try{if(location.hash==='#admin'||location.hash==='#tv')location.hash='top'}catch(e){}}
 
 function adRender(){
   var box=$('#adm');if(box.hidden||!DRAFT)return;
@@ -706,6 +706,13 @@ function adMenu(){
 }
 
 /* reports tab */
+function repPin(){
+  openSheet('<h3>PIN администратора</h3><p class="sub" style="margin:0">Отчёты и выручка открываются только с PIN администратора.</p><div class="f"><input id="rp-in" type="password" inputmode="numeric" autocomplete="off" placeholder="••••"></div><p class="err" id="rp-err" hidden></p><div class="row"><button class="sm p" id="rp-go">Открыть отчёты</button><button class="sm" data-act="sheetclose">Отмена</button></div>');
+  var err=function(m){var e=$('#rp-err');if(e){e.textContent=m;e.hidden=false}};
+  var go=function(){var v=$('#rp-in').value.trim();if(!v)return;api('GET','/check',null,v).then(function(r){if(r&&r.role==='admin'){AD.repOk=true;AD.tab='rep';$('#sheet').hidden=true;$('#sheet').innerHTML='';adRender()}else err('Неверный PIN администратора.')},function(e){err(e&&e.pin?'Неверный PIN администратора.':'Нет связи с сервером. Проверьте интернет.')})};
+  $('#rp-go').onclick=go;$('#rp-in').onkeydown=function(e){if(e.key==='Enter')go()};
+  setTimeout(function(){try{$('#rp-in').focus()}catch(x){}},50);
+}
 function money(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,' ')+' ₸'}
 function sumOf(o){var n=parseInt(String(o.sum||'').replace(/\D/g,''),10);return isNaN(n)?0:n}
 function adRep(){
@@ -835,7 +842,7 @@ function tvRender(){
   var today=L.filter(function(o){return o.date===t&&(o.status||'new')==='new'});
   var col=function(st,title){var a=today;return '<section class="tc '+st+'"><h2><span>'+title+'</span><span>'+a.length+'</span></h2><div class="bd">'+(a.length?a.map(function(o){return tvOrder(o)}).join(''):'<div class="em">Пусто</div>')+'</div></section>'};
   var nx=L.filter(function(o){return o.date>t&&(o.status||'new')==='new'}).slice(0,8);
-  var h='<div class="tvh"><h1>Заказы на сегодня</h1><span class="dt">'+esc(fmtL(t))+'</span><span class="ck2">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</span><button class="sm x" data-inst="fs">'+(document.fullscreenElement||document.webkitFullscreenElement?'Свернуть':'Во весь экран')+'</button>'+(LS.get('assorti.pin','')?'<a class="sm" href="#admin">Админка</a>':'')+(IN_CLAUDE?'':'<button class="sm" data-pinout>Сменить PIN</button>')+'<button class="sm" data-act="adclose">Выйти</button></div>';
+  var h='<div class="tvh"><h1>Заказы на сегодня</h1><span class="dt">'+esc(fmtL(t))+'</span><span class="ck2">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</span><button class="sm x" data-inst="fs">'+(document.fullscreenElement||document.webkitFullscreenElement?'Свернуть':'Во весь экран')+'</button>'+(IN_CLAUDE?'':'<button class="sm" data-pinout>Сменить PIN</button>')+'<button class="sm" data-act="adclose">Выйти</button></div>';
   if(OS.err)h+='<div class="note">Нет связи с хранилищем заказов.</div>';
   if(OS.mode==='local')h+='<div class="note">Экран работает без общего входа: показаны только заказы, созданные на этом устройстве.</div>';
   h+='<div class="tvm">'+col('new','Новые')+'<section class="tc next"><h2><span>Ближайшие дни</span></h2><div class="bd">'+(nx.length?nx.map(function(o){return tvOrder(o,true)}).join(''):'<div class="em">Заказов на ближайшие дни нет</div>')+'</div></section></div>';
@@ -865,7 +872,7 @@ document.addEventListener('click',function(e){
   if(t=e.target.closest('[data-tog]')){e.preventDefault();toggle(t.dataset.tog);return}
   if(t=e.target.closest('[data-open]')){lbOpen(t.dataset.open);return}
   if(t=e.target.closest('[data-cat]')){cat=t.dataset.cat;shown=STEP;renderChips();renderMenu();var c=$('#chips');if(c){var on=c.querySelector('.on');if(on&&on.scrollIntoView)on.scrollIntoView({inline:'center',block:'nearest'})}return}
-  if(t=e.target.closest('[data-adtab]')){AD.tab=t.dataset.adtab;adRender();return}
+  if(t=e.target.closest('[data-adtab]')){if(t.dataset.adtab==='rep'&&!IN_CLAUDE&&!AD.repOk){repPin();return}AD.tab=t.dataset.adtab;adRender();return}
   if(t=e.target.closest('[data-flt]')){AD.flt=t.dataset.flt;adRender();return}
   if(t=e.target.closest('[data-mcat]')){AD.mcat=t.dataset.mcat;adRender();return}
   if(t=e.target.closest('[data-ost]')){osStatus(t.dataset.ost,t.dataset.st);return}
