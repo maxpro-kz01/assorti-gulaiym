@@ -391,7 +391,7 @@ var $=function(s,r){return (r||document).querySelector(s)};
 var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
 var LS={get:function(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del:function(k){try{localStorage.removeItem(k)}catch(e){}}};
 var API='https://br-broad-thunder-bhv7ishh-assorti.compute.c-10.eu-central-1.aws.neon.tech';
-function api(m,p,b){var h={'Content-Type':'application/json'},pin=LS.get('assorti.pin','');if(pin)h['X-Pin']=pin;return fetch(API+p,{method:m,headers:h,body:b?JSON.stringify(b):undefined,cache:'no-store'}).then(function(r){if(r.status===401){var e=new Error('pin');e.pin=1;throw e}if(!r.ok)throw new Error('http '+r.status);return r.json()})}
+function api(m,p,b){var h={'Content-Type':'application/json'},pin=LS.get('assorti.pin','')||LS.get('assorti.kpin','');if(pin)h['X-Pin']=pin;return fetch(API+p,{method:m,headers:h,body:b?JSON.stringify(b):undefined,cache:'no-store'}).then(function(r){if(r.status===401){var e=new Error('pin');e.pin=1;throw e}if(!r.ok)throw new Error('http '+r.status);return r.json()})}
 var CATN={};DATA.cats.forEach(function(c){CATN[c[0]]=c[1]});
 var pad=function(n){return String(n).padStart(2,'0')};
 var ymd=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
@@ -635,7 +635,7 @@ function adRender(){
   var box=$('#adm');if(box.hidden||!DRAFT)return;
   var scr=box.scrollTop;
   var tabs=[['orders','Заказы'],['cal','Календарь'],['menu','Меню'],['rep','Отчёты']];
-  var h='<div class="ah"><b>Админка</b><a class="sm" href="#tv">Экран кухни</a><button class="sm" data-act="adclose">Выйти</button></div>';
+  var h='<div class="ah"><b>Админка</b><a class="sm" href="#tv">Экран кухни</a>'+(IN_CLAUDE?'':'<button class="sm" data-pinout>Сменить PIN</button>')+'<button class="sm" data-act="adclose">Выйти</button></div>';
   h+='<nav class="tabs" role="tablist">'+tabs.map(function(t){return '<button role="tab" class="'+(AD.tab===t[0]?'on':'')+'" data-adtab="'+t[0]+'" aria-selected="'+(AD.tab===t[0])+'">'+t[1]+'</button>'}).join('')+'</nav>';
   h+='<div class="ab w">'+''+(OS.mode==='local'&&OS.started?'<div class="note">Вы не вошли в общее хранилище: заказы сохраняются только на этом устройстве, экран кухни их не увидит.</div>':'')+(OS.err?'<div class="note">Не удаётся загрузить заказы. Проверьте интернет и войдите в Claude.</div>':'')+(AD.tab==='orders'?adOrders():AD.tab==='cal'?adCal():AD.tab==='rep'?adRep():adMenu())+'</div>';
   if(dirty()){h+='<div class="pbar"><span>Есть неопубликованные изменения</span><button class="sm" data-act="adreset">Сбросить</button><button class="sm p" id="pubbtn" data-act="adpub">'+'Опубликовать'+'</button></div>'}
@@ -820,7 +820,7 @@ function openTv(){
   var box=$('#tvv');
   if(!CAP.ready){box.innerHTML='<div class="tvbig">Загрузка…</div>';capP.then(function(){if(location.hash==='#tv')openTv()});return}
   if(!canAdmin()){box.innerHTML='<div class="tvbig">Экран кухни доступен администратору.<br>Войдите в Claude на этом устройстве под аккаунтом владельца или редактора и откройте страницу снова.<br><br><button class="sm" data-act="adclose">Закрыть</button></div>';return}
-  if(!IN_CLAUDE&&!LS.get('assorti.pin','')){pinForm(box,'tv');return}
+  if(!IN_CLAUDE&&!LS.get('assorti.pin','')&&!LS.get('assorti.kpin','')){pinForm(box,'tv');return}
   osStart();tvRender();tvAuto();clearInterval(tvTimer);tvTimer=setInterval(function(){if(!$('#tvv').hidden)tvRender()},20000);
 }
 function fmtPh(p){var d=String(p||'').replace(/\D/g,'');if(d.length===11&&(d[0]==='8'||d[0]==='7'))d='7'+d.slice(1);else if(d.length===10)d='7'+d;if(d.length!==11)return String(p||'').trim();return '+7 '+d.slice(1,4)+' '+d.slice(4,7)+' '+d.slice(7,9)+' '+d.slice(9)}
@@ -835,7 +835,7 @@ function tvRender(){
   var today=L.filter(function(o){return o.date===t&&(o.status||'new')==='new'});
   var col=function(st,title){var a=today;return '<section class="tc '+st+'"><h2><span>'+title+'</span><span>'+a.length+'</span></h2><div class="bd">'+(a.length?a.map(function(o){return tvOrder(o)}).join(''):'<div class="em">Пусто</div>')+'</div></section>'};
   var nx=L.filter(function(o){return o.date>t&&(o.status||'new')==='new'}).slice(0,8);
-  var h='<div class="tvh"><h1>Заказы на сегодня</h1><span class="dt">'+esc(fmtL(t))+'</span><span class="ck2">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</span><button class="sm x" data-inst="fs">'+(document.fullscreenElement||document.webkitFullscreenElement?'Свернуть':'Во весь экран')+'</button><a class="sm" href="#admin">Админка</a><button class="sm" data-act="adclose">Выйти</button></div>';
+  var h='<div class="tvh"><h1>Заказы на сегодня</h1><span class="dt">'+esc(fmtL(t))+'</span><span class="ck2">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</span><button class="sm x" data-inst="fs">'+(document.fullscreenElement||document.webkitFullscreenElement?'Свернуть':'Во весь экран')+'</button>'+(LS.get('assorti.pin','')?'<a class="sm" href="#admin">Админка</a>':'')+(IN_CLAUDE?'':'<button class="sm" data-pinout>Сменить PIN</button>')+'<button class="sm" data-act="adclose">Выйти</button></div>';
   if(OS.err)h+='<div class="note">Нет связи с хранилищем заказов.</div>';
   if(OS.mode==='local')h+='<div class="note">Экран работает без общего входа: показаны только заказы, созданные на этом устройстве.</div>';
   h+='<div class="tvm">'+col('new','Новые')+'<section class="tc next"><h2><span>Ближайшие дни</span></h2><div class="bd">'+(nx.length?nx.map(function(o){return tvOrder(o,true)}).join(''):'<div class="em">Заказов на ближайшие дни нет</div>')+'</div></section></div>';
@@ -946,11 +946,16 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Enter'){var t=document.activeElement&&document.activeElement.closest&&document.activeElement.closest('[data-tvo]');if(t){e.preventDefault();tvDetail(t.dataset.tvo)}}
 });
 window.addEventListener('hashchange',function(){if(location.hash!=='#tv')tvDetailClose()});
+document.addEventListener('click',function(e){
+  if(!e.target.closest('[data-pinout]'))return;e.preventDefault();
+  LS.del('assorti.pin');LS.del('assorti.kpin');DRAFT=null;OS.list=[];
+  if(location.hash==='#tv')openTv();else openAdmin();
+});
 /* ---------- shared state + PIN (public version) ---------- */
 function applyState(st){STATE=st;STATE.busy=STATE.busy||{};ALL=STATE.items||[];BYID=mk(ALL);ITEMS=ALL.filter(function(i){return !i.hid});Object.keys(ST.sel).forEach(function(k){if(!BYID[k])delete ST.sel[k]});renderChips();renderMenu();renderSel();busyCheck()}
 function pinForm(box,w){
-  box.innerHTML='<div class="ah"><b>'+(w==='tv'?'Экран кухни':'Админка')+'</b><button class="sm" data-act="adclose">Закрыть</button></div><div class="w" style="max-width:420px;padding-top:40px;display:grid;gap:12px;font-size:16px"><h3 style="margin:0;font:800 22px var(--fd)">Введите PIN-код</h3><div class="f"><input id="pin-in" type="password" inputmode="numeric" autocomplete="off" placeholder="••••"></div><p class="err" id="pin-err" hidden></p><button class="btn p" id="pin-go">Войти</button></div>';
-  var go=function(){var v=$('#pin-in').value.trim();if(!v)return;LS.set('assorti.pin',v);api('GET','/check').then(function(){if(w==='tv')openTv();else openAdmin()},function(e){LS.del('assorti.pin');var er=$('#pin-err');if(er){er.textContent=e&&e.pin?'Неверный PIN-код':'Нет связи с сервером. Проверьте интернет.';er.hidden=false}})};
+  box.innerHTML='<div class="ah"><b>'+(w==='tv'?'Экран кухни':'Админка')+'</b><button class="sm" data-act="adclose">Закрыть</button></div><div class="w" style="max-width:420px;padding-top:40px;display:grid;gap:12px;font-size:16px"><h3 style="margin:0;font:800 22px var(--fd)">'+(w==='tv'?'PIN-код кухни':'PIN-код администратора')+'</h3><div class="f"><input id="pin-in" type="password" inputmode="numeric" autocomplete="off" placeholder="••••"></div><p class="err" id="pin-err" hidden></p><button class="btn p" id="pin-go">Войти</button></div>';
+  var go=function(){var v=$('#pin-in').value.trim();if(!v)return;var key=w==='tv'?'assorti.kpin':'assorti.pin';LS.del('assorti.pin');LS.del('assorti.kpin');LS.set(key,v);api('GET','/check').then(function(r){if(w!=='tv'&&!(r&&r.role==='admin')){LS.del('assorti.pin');var er=$('#pin-err');if(er){er.textContent='Это PIN кухни. В админку входят только с PIN администратора.';er.hidden=false}return}if(w==='tv')openTv();else openAdmin()},function(e){LS.del(key);var er=$('#pin-err');if(er){er.textContent=e&&e.pin?'Неверный PIN-код':'Нет связи с сервером. Проверьте интернет.';er.hidden=false}})};
   $('#pin-go').onclick=go;$('#pin-in').onkeydown=function(e){if(e.key==='Enter')go()};
   setTimeout(function(){try{$('#pin-in').focus()}catch(x){}},50);
 }
