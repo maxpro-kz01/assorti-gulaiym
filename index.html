@@ -460,7 +460,7 @@ var capP=(function(){
   var use=(window.claude&&window.claude.use)?function(n){return window.claude.use(n).catch(function(){return null})}:function(){return Promise.resolve(null)};
   return Promise.all([use('user'),use('artifact'),use('assets'),use('db')]).then(function(r){CAP.user=r[0];CAP.artifact=r[1];CAP.assets=r[2];CAP.db=r[3];CAP.ready=true});
 })();
-function canAdmin(){if(!IN_CLAUDE)return false;try{return !!(CAP.user&&(CAP.user.isOwner()||CAP.user.canEdit()))}catch(e){return false}}
+function canAdmin(){if(!IN_CLAUDE)return true;try{return !!(CAP.user&&(CAP.user.isOwner()||CAP.user.canEdit()))}catch(e){return false}}
 
 /* toast */
 var tt=null;
@@ -572,7 +572,7 @@ function adRender(){
   var tabs=[['orders','Заказы'],['cal','Календарь'],['menu','Меню']];
   var h='<div class="ah"><b>Админка</b><a class="sm" href="#tv">Экран кухни</a><button class="sm" data-act="adclose">Выйти</button></div>';
   h+='<nav class="tabs" role="tablist">'+tabs.map(function(t){return '<button role="tab" class="'+(AD.tab===t[0]?'on':'')+'" data-adtab="'+t[0]+'" aria-selected="'+(AD.tab===t[0])+'">'+t[1]+'</button>'}).join('')+'</nav>';
-  h+='<div class="ab w">'+(!IN_CLAUDE?'<div class="note">Страница открыта как файл: меню, заказы и даты сохраняются только в этом браузере и не видны другим устройствам.</div>':'')+(OS.mode==='local'&&OS.started?'<div class="note">Вы не вошли в общее хранилище: заказы сохраняются только на этом устройстве, экран кухни их не увидит.</div>':'')+(OS.err?'<div class="note">Не удаётся загрузить заказы. Проверьте интернет и войдите в Claude.</div>':'')+(AD.tab==='orders'?adOrders():AD.tab==='cal'?adCal():adMenu())+'</div>';
+  h+='<div class="ab w">'+(!IN_CLAUDE?'<div class="note">Эта версия работает без общего хранилища: меню, заказы и занятые даты сохраняются только в этом браузере. Клиенты и другие устройства их не видят.</div>':'')+(OS.mode==='local'&&OS.started?'<div class="note">Вы не вошли в общее хранилище: заказы сохраняются только на этом устройстве, экран кухни их не увидит.</div>':'')+(OS.err?'<div class="note">Не удаётся загрузить заказы. Проверьте интернет и войдите в Claude.</div>':'')+(AD.tab==='orders'?adOrders():AD.tab==='cal'?adCal():adMenu())+'</div>';
   if(dirty()){h+='<div class="pbar"><span>Есть неопубликованные изменения</span><button class="sm" data-act="adreset">Сбросить</button><button class="sm p" id="pubbtn" data-act="adpub">'+(IN_CLAUDE?'Опубликовать':'Сохранить')+'</button></div>'}
   box.innerHTML=h;box.scrollTop=scr;
 }
