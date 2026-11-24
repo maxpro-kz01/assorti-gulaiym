@@ -242,6 +242,18 @@ a{color:inherit}
 .tc .em{padding:1.4em .6em;text-align:center;color:var(--mute);font:600 1.1em var(--fd)}
 .tvbig{margin:auto;text-align:center;font:700 1.4em var(--fd);color:var(--mute);max-width:30em;line-height:1.4}
 @media(max-width:900px){.tv{overflow:auto}.tvm{grid-template-columns:1fr}.tvh h1{font-size:1.6em}.tvh .ck2{font-size:1.8em}.tvh{flex-wrap:wrap}}
+/* install */
+.inst{display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px 10px 12px 14px;border-radius:20px;background:var(--cream);border:1.5px solid #F7E4B6}
+.inst i{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;color:var(--amd);box-shadow:0 3px 10px rgba(80,55,10,.08)}
+.inst i svg{width:22px;height:22px}
+.inst>div{flex:1;min-width:0}
+.inst b{display:block;font:700 15px/1.2 var(--fd)}
+.inst small{display:block;margin-top:2px;color:var(--mute);font-size:13px;line-height:1.3}
+.inst .sm{flex:none}
+.inst .ix{flex:none;width:36px;height:36px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--mute);font:600 22px/1 var(--fd)}
+@media(max-width:420px){.inst{flex-wrap:wrap}.inst>div{flex-basis:calc(100% - 100px)}.inst .sm{flex:1}}
+.stp{margin:0;padding-left:1.4em;display:grid;gap:9px;font-size:15px;line-height:1.4}
+.stp li{padding-left:4px;overflow-wrap:anywhere}
 </style></head>
 <body>
 <div id="pub">
@@ -252,6 +264,7 @@ a{color:inherit}
 
 <main id="top">
 <div class="w">
+  <div id="inst"></div>
   <section class="hero">
     <div>
       <span class="eyebrow">Гүләйім Қосжан · шеф-повар · Кызылорда</span>
@@ -447,7 +460,7 @@ var capP=(function(){
   var use=(window.claude&&window.claude.use)?function(n){return window.claude.use(n).catch(function(){return null})}:function(){return Promise.resolve(null)};
   return Promise.all([use('user'),use('artifact'),use('assets'),use('db')]).then(function(r){CAP.user=r[0];CAP.artifact=r[1];CAP.assets=r[2];CAP.db=r[3];CAP.ready=true});
 })();
-function canAdmin(){if(!IN_CLAUDE)return true;try{return !!(CAP.user&&(CAP.user.isOwner()||CAP.user.canEdit()))}catch(e){return false}}
+function canAdmin(){if(!IN_CLAUDE)return false;try{return !!(CAP.user&&(CAP.user.isOwner()||CAP.user.canEdit()))}catch(e){return false}}
 
 /* toast */
 var tt=null;
@@ -793,6 +806,32 @@ document.addEventListener('keydown',function(e){
 $('#more').addEventListener('click',function(){shown+=STEP;renderMenu()});
 $('#sheet').addEventListener('click',function(e){if(e.target.id==='sheet')closeSheet()});
 
+/* ---------- install on phone ---------- */
+var UA=navigator.userAgent||'';
+var PF=(/iPhone|iPad|iPod/.test(UA)||(/Macintosh/.test(UA)&&navigator.maxTouchPoints>1))?'ios':/Android/.test(UA)?'and':'pc';
+var IG={
+ ios:{t:'iPhone',s:['Откройте ссылку в Safari. Если она открылась в Instagram или WhatsApp, нажмите «…» и выберите «Открыть в Safari».','Нажмите кнопку «Поделиться» внизу экрана (квадрат со стрелкой вверх).','Выберите «На экран „Домой“» и нажмите «Добавить».','На экране появится значок: меню открывается одним нажатием.']},
+ and:{t:'Android',s:['Откройте ссылку в Chrome. Если она открылась в Instagram или WhatsApp, нажмите «⋮» и выберите «Открыть в Chrome».','Нажмите «⋮» в правом верхнем углу.','Выберите «Добавить на главный экран» или «Установить приложение» и подтвердите.','Значок появится на главном экране рядом с другими приложениями.']},
+ pc:{t:'Компьютер',s:['Откройте ссылку в Chrome или Edge.','Chrome: «⋮» → «Сохранить и поделиться» → «Создать ярлык», отметьте «Открыть в отдельном окне». Edge: «…» → «Приложения» → «Установить этот сайт как приложение».','Ярлык появится на рабочем столе.']}
+};
+var ICPH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3M10 18h4"/></svg>';
+function instSheet(p){
+  openSheet('<h3>Установить приложение</h3><p class="sub" style="margin:0">Значок на экране открывает меню сразу, без поиска ссылки. Из магазина приложений ничего скачивать не нужно.</p><div class="fl">'+['ios','and','pc'].map(function(k){return '<button class="chip'+(k===p?' on':'')+'" data-instp="'+k+'">'+IG[k].t+'</button>'}).join('')+'</div><ol class="stp">'+IG[p].s.map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ol><button class="sm" data-act="sheetclose">Понятно</button>');
+}
+function instBar(){
+  var b=$('#inst');if(!b)return;
+  var st=false;try{st=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone}catch(x){}
+  if(st||LS.get('assorti.inst',0)){b.innerHTML='';return}
+  b.innerHTML='<div class="inst"><i>'+ICPH+'</i><div><b>Установите меню на телефон</b><small>Значок на экране: заказ в одно нажатие.</small></div><button class="sm p" data-inst="open">Установить</button><button class="ix" data-inst="hide" aria-label="Скрыть">×</button></div>';
+}
+document.addEventListener('click',function(e){
+  var t=e.target.closest('[data-inst],[data-instp]');if(!t)return;e.preventDefault();
+  if(t.dataset.instp){instSheet(t.dataset.instp);return}
+  var a=t.dataset.inst;
+  if(a==='open')instSheet(PF);
+  else if(a==='hide'){LS.set('assorti.inst',1);instBar()}
+});
+instBar();
 heroInit();renderChips();renderMenu();renderSel();
 if(location.hash==='#admin'||location.hash==='#tv')route();
 })();
