@@ -331,7 +331,7 @@ a{color:inherit}
       <div class="f"><label for="f-name">Ваше имя</label><input id="f-name" autocomplete="name" placeholder="Например, Айгерим"></div>
       <div class="f"><label for="f-phone">Номер телефона</label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 700 000 00 00"></div>
       <div class="f"><label for="f-type">Как получить</label><select id="f-type"><option>На вынос</option><option>Доставка</option></select></div>
-      <div class="two"><div class="f"><label for="f-date">Дата</label><input id="f-date" type="date"></div><div class="f"><label for="f-guests">Гостей</label><input id="f-guests" type="number" inputmode="numeric" min="1" max="800" placeholder="50"></div></div>
+      <div class="two"><div class="f"><label for="f-date">Дата *</label><input id="f-date" type="date"></div><div class="f"><label for="f-guests">Гостей</label><input id="f-guests" type="number" inputmode="numeric" min="1" max="800" placeholder="50"></div></div>
       <p class="warn" id="busywarn" hidden>На эту дату у шефа уже есть бронь. Вы можете отправить заявку: шеф уточнит, сможет ли взять заказ, или предложит другую дату.</p>
       <div class="f"><label for="f-note">Пожелания</label><textarea id="f-note" placeholder="Время, адрес доставки, пожелания"></textarea></div>
       <p class="err" id="err" role="alert" hidden></p>
@@ -466,6 +466,7 @@ $('#send').addEventListener('click',function(){
   var m=ST.me,err=$('#err'),digits=String(m.phone||'').replace(/\D/g,''),a=ids(),msg='';
   if(!String(m.name||'').trim())msg='Напишите, как вас зовут.';
   else if(digits.length<10)msg='Напишите номер телефона полностью.';
+  else if(!m.date)msg='Выберите дату заказа.';
   else if(!a.length&&!String(m.note||'').trim())msg='Выберите блюда или напишите пожелания.';
   if(msg){err.textContent=msg;err.hidden=false;return}
   err.hidden=true;
@@ -477,6 +478,7 @@ $('#send').addEventListener('click',function(){
   if(a.length)t+='\n\nБлюда:\n'+a.map(function(id,k){var it=BYID[id];return (k+1)+'. '+labelOf(it)+(it.p?' — '+it.p:'')}).join('\n');
   if(String(m.note||'').trim())t+='\n\nПожелания: '+m.note.trim();
   var url=waUrl(WA,t);
+  if(!IN_CLAUDE){try{fetch(API+'/request',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({name:m.name.trim(),phone:m.phone.trim(),date:m.date||'',type:m.type,guests:m.guests||'',note:String(m.note||'').trim(),dishes:a})}).catch(function(){})}catch(e){}}
   try{var l=document.createElement('a');l.href=url;l.target='_blank';l.rel='noopener';document.body.appendChild(l);l.click();l.remove()}catch(e){}
   $('#form').hidden=true;var d=$('#done');d.hidden=false;
   d.innerHTML='<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#F6A81C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5"/></svg><h3>Заявка готова</h3><p>Откройте WhatsApp и нажмите «Отправить», чтобы шеф получил вашу заявку.</p><a class="btn p" href="'+esc(url)+'" target="_blank" rel="noopener">Открыть WhatsApp</a><button class="btn" data-act="again">Вернуться к заявке</button>';
@@ -643,7 +645,7 @@ function dishThumbs(o,n){
 }
 function orderCard(o){
   var dg=String(o.phone||'').replace(/\D/g,'');
-  return '<div class="card oc '+esc(o.status||'new')+'"><div class="t"><b>'+esc(o.name||'Без имени')+'</b><span>'+esc(fmtD(o.date))+(o.time?', '+esc(o.time):'')+'</span></div>'+
+  return '<div class="card oc '+esc(o.status||'new')+'"><div class="t"><b>'+esc(o.name||'Без имени')+(o.src==='site'?' <small style="font:700 11px var(--fd);padding:3px 8px;border-radius:99px;background:var(--cream);color:var(--amd);vertical-align:2px">с сайта</small>':'')+'</b><span>'+esc(fmtD(o.date))+(o.time?', '+esc(o.time):'')+'</span></div>'+
   '<div class="m">'+esc(o.type||'')+(o.guests?' · '+esc(o.guests)+' гостей':'')+(o.sum?' · '+esc(o.sum):'')+(o.phone?' · <a href="https://wa.me/'+esc(dg)+'" target="_blank" rel="noopener">'+esc(o.phone)+'</a>':'')+'</div>'+
   dishThumbs(o,10)+(o.note?'<div class="m">'+esc(o.note)+'</div>':'')+
   '<div class="seg">'+STL.map(function(s){return '<button data-st="'+s[0]+'" data-ost="'+esc(o.id)+'" class="'+((o.status||'new')===s[0]?'on':'')+'">'+s[1]+'</button>'}).join('')+'</div>'+
