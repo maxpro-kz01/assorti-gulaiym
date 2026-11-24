@@ -2,6 +2,11 @@
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Ассорти — Гулайым</title>
 <meta name="theme-color" content="#FFFFFF">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ассорти">
 <meta name="description" content="Ассорти, салаты и горячие блюда на заказ для свадеб, юбилеев, корпоративов и ресторанов. Кызылорда, заказ через WhatsApp.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700&family=Rubik:wght@500;600;700;800&display=swap">
 <style>
@@ -733,7 +738,7 @@ function tvRender(){
   var today=L.filter(function(o){return o.date===t&&o.status!=='done'});
   var col=function(st,title){var a=today.filter(function(o){return (o.status||'new')===st});return '<section class="tc '+st+'"><h2><span>'+title+'</span><span>'+a.length+'</span></h2><div class="bd">'+(a.length?a.map(function(o){return tvOrder(o)}).join(''):'<div class="em">Пусто</div>')+'</div></section>'};
   var nx=L.filter(function(o){return o.date>t&&o.status!=='done'}).slice(0,8);
-  var h='<div class="tvh"><h1>Заказы на сегодня</h1><span class="dt">'+esc(fmtL(t))+'</span><span class="ck2">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</span><a class="sm x" href="#admin">Админка</a><button class="sm" data-act="adclose">Выйти</button></div>';
+  var h='<div class="tvh"><h1>Заказы на сегодня</h1><span class="dt">'+esc(fmtL(t))+'</span><span class="ck2">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</span><button class="sm x" data-inst="fs">Во весь экран</button><a class="sm" href="#admin">Админка</a><button class="sm" data-act="adclose">Выйти</button></div>';
   if(OS.err)h+='<div class="note">Нет связи с хранилищем заказов.</div>';
   if(OS.mode==='local')h+='<div class="note">Экран работает без общего входа: показаны только заказы, созданные на этом устройстве.</div>';
   h+='<div class="tvm">'+col('new','Новые')+col('cook','Готовятся')+col('ready','Готово')+'<section class="tc next"><h2><span>Ближайшие дни</span></h2><div class="bd">'+(nx.length?nx.map(function(o){return tvOrder(o,true)}).join(''):'<div class="em">Заказов на ближайшие дни нет</div>')+'</div></section></div>';
@@ -806,30 +811,51 @@ document.addEventListener('keydown',function(e){
 $('#more').addEventListener('click',function(){shown+=STEP;renderMenu()});
 $('#sheet').addEventListener('click',function(e){if(e.target.id==='sheet')closeSheet()});
 
-/* ---------- install on phone ---------- */
+/* ---------- install app (PWA): phone + TV ---------- */
 var UA=navigator.userAgent||'';
-var PF=(/iPhone|iPad|iPod/.test(UA)||(/Macintosh/.test(UA)&&navigator.maxTouchPoints>1))?'ios':/Android/.test(UA)?'and':'pc';
+var IS_TV=/SmartTV|SMART-TV|Tizen|Web0S|webOS|NetCast|BRAVIA|Android TV|GoogleTV|AFT[A-Z]|CrKey|HbbTV|Large Screen/i.test(UA)||(/Android/.test(UA)&&!/Mobile/.test(UA)&&!(navigator.maxTouchPoints>0));
+var PF=IS_TV?'tv':(/iPhone|iPad|iPod/.test(UA)||(/Macintosh/.test(UA)&&navigator.maxTouchPoints>1))?'ios':/Android/.test(UA)?'and':'pc';
+var STANDALONE=false;try{STANDALONE=window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches||!!navigator.standalone}catch(x){}
+var DIP=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();DIP=e;instBar()});
+window.addEventListener('appinstalled',function(){DIP=null;LS.set('assorti.inst',1);instBar();toast('Приложение установлено')});
+if('serviceWorker' in navigator){try{navigator.serviceWorker.register('sw.js').catch(function(){})}catch(x){}}
+if(STANDALONE&&IS_TV&&!location.hash){try{location.hash='tv'}catch(x){}}
 var IG={
- ios:{t:'iPhone',s:['Откройте ссылку в Safari. Если она открылась в Instagram или WhatsApp, нажмите «…» и выберите «Открыть в Safari».','Нажмите кнопку «Поделиться» внизу экрана (квадрат со стрелкой вверх).','Выберите «На экран „Домой“» и нажмите «Добавить».','На экране появится значок: меню открывается одним нажатием.']},
- and:{t:'Android',s:['Откройте ссылку в Chrome. Если она открылась в Instagram или WhatsApp, нажмите «⋮» и выберите «Открыть в Chrome».','Нажмите «⋮» в правом верхнем углу.','Выберите «Добавить на главный экран» или «Установить приложение» и подтвердите.','Значок появится на главном экране рядом с другими приложениями.']},
- pc:{t:'Компьютер',s:['Откройте ссылку в Chrome или Edge.','Chrome: «⋮» → «Сохранить и поделиться» → «Создать ярлык», отметьте «Открыть в отдельном окне». Edge: «…» → «Приложения» → «Установить этот сайт как приложение».','Ярлык появится на рабочем столе.']}
+ ios:{t:'iPhone',s:['Откройте ссылку в Safari. Если она открылась в Instagram или WhatsApp, нажмите «…» и выберите «Открыть в Safari».','Нажмите кнопку «Поделиться» внизу экрана (квадрат со стрелкой вверх).','Выберите «На экран „Домой“» и нажмите «Добавить».','На экране появится значок «Ассорти»: меню открывается одним нажатием.']},
+ and:{t:'Android',s:['Откройте ссылку в Chrome. Если она открылась в Instagram или WhatsApp, нажмите «⋮» и выберите «Открыть в Chrome».','Нажмите «⋮» в правом верхнем углу.','Выберите «Установить приложение» или «Добавить на главный экран» и подтвердите.','Значок «Ассорти» появится рядом с другими приложениями.']},
+ tv:{t:'Телевизор',s:['Откройте этот сайт в браузере Chrome на телевизоре.','Нажмите «⋮» (три точки) в правом верхнем углу браузера пультом или мышкой.','Выберите «Установить приложение» или «Добавить на главный экран».','Значок «Ассорти» появится среди приложений телевизора. При запуске с него сразу открывается экран кухни на весь экран.','Если такого пункта нет, нажмите звёздочку ☆ в адресной строке и сохраните страницу экрана кухни (адрес с #tv) в закладки.']},
+ pc:{t:'Компьютер',s:['Откройте ссылку в Chrome или Edge.','Нажмите значок установки справа в адресной строке или «⋮» → «Установить приложение».','Ярлык «Ассорти» появится на рабочем столе.']}
 };
 var ICPH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3M10 18h4"/></svg>';
+var ICTV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>';
 function instSheet(p){
-  openSheet('<h3>Установить приложение</h3><p class="sub" style="margin:0">Значок на экране открывает меню сразу, без поиска ссылки. Из магазина приложений ничего скачивать не нужно.</p><div class="fl">'+['ios','and','pc'].map(function(k){return '<button class="chip'+(k===p?' on':'')+'" data-instp="'+k+'">'+IG[k].t+'</button>'}).join('')+'</div><ol class="stp">'+IG[p].s.map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ol><button class="sm" data-act="sheetclose">Понятно</button>');
+  openSheet('<h3>Установить приложение</h3><p class="sub" style="margin:0">Значок на экране открывает Ассорти сразу, без поиска ссылки. Из магазина приложений ничего скачивать не нужно.</p><div class="fl">'+['tv','ios','and','pc'].map(function(k){return '<button class="chip'+(k===p?' on':'')+'" data-instp="'+k+'">'+IG[k].t+'</button>'}).join('')+'</div><ol class="stp">'+IG[p].s.map(function(x){return '<li>'+esc(x)+'</li>'}).join('')+'</ol>'+(p==='tv'?'<div class="row"><button class="sm p" data-inst="gotv">Открыть экран кухни</button></div>':'')+'<button class="sm" data-act="sheetclose">Понятно</button>');
 }
 function instBar(){
   var b=$('#inst');if(!b)return;
-  var st=false;try{st=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone}catch(x){}
-  if(st||LS.get('assorti.inst',0)){b.innerHTML='';return}
-  b.innerHTML='<div class="inst"><i>'+ICPH+'</i><div><b>Установите меню на телефон</b><small>Значок на экране: заказ в одно нажатие.</small></div><button class="sm p" data-inst="open">Установить</button><button class="ix" data-inst="hide" aria-label="Скрыть">×</button></div>';
+  if(STANDALONE||(LS.get('assorti.inst',0)&&!DIP)){b.innerHTML='';return}
+  var tv=PF==='tv';
+  b.innerHTML='<div class="inst"><i>'+(tv?ICTV:ICPH)+'</i><div><b>'+(tv?'Установите экран кухни на телевизор':'Установите меню на телефон')+'</b><small>'+(tv?'Значок среди приложений ТВ, заказы на весь экран.':'Значок на экране: заказ в одно нажатие.')+'</small></div><button class="sm p" data-inst="open">Установить</button>'+(tv?'<button class="sm" data-inst="gotv">Экран кухни</button>':'')+'<button class="ix" data-inst="hide" aria-label="Скрыть">×</button></div>';
+}
+function doInstall(){
+  if(DIP){var d=DIP;DIP=null;try{d.prompt();Promise.resolve(d.userChoice).then(function(c){if(c&&c.outcome==='accepted')LS.set('assorti.inst',1);instBar()},function(){})}catch(x){instSheet(PF)}return}
+  instSheet(PF);
+}
+function fsToggle(){
+  var d=document.documentElement,r=d.requestFullscreen||d.webkitRequestFullscreen,fail=function(){toast('Браузер не разрешил полный экран. Включите его в меню браузера.')};
+  if(document.fullscreenElement||document.webkitFullscreenElement){try{(document.exitFullscreen||document.webkitExitFullscreen).call(document)}catch(x){}return}
+  if(!r){fail();return}
+  try{Promise.resolve(r.call(d)).catch(fail)}catch(x){fail()}
 }
 document.addEventListener('click',function(e){
   var t=e.target.closest('[data-inst],[data-instp]');if(!t)return;e.preventDefault();
   if(t.dataset.instp){instSheet(t.dataset.instp);return}
   var a=t.dataset.inst;
-  if(a==='open')instSheet(PF);
-  else if(a==='hide'){LS.set('assorti.inst',1);instBar()}
+  if(a==='open')doInstall();
+  else if(a==='hide'){LS.set('assorti.inst',1);DIP=null;instBar()}
+  else if(a==='gotv'){$('#sheet').hidden=true;$('#sheet').innerHTML='';LEFT=false;if(location.hash==='#tv')openTv();else location.hash='tv'}
+  else if(a==='fs')fsToggle();
 });
 instBar();
 heroInit();renderChips();renderMenu();renderSel();
