@@ -341,11 +341,13 @@ var IM=window.IMGS||{};var WA='77472922676';
 var DATA={"cats":[["meat","Мясные ассорти"],["grill","Колбасы и гриль"],["hot","Горячее"],["fish","Рыба и морепродукты"],["salad","Салаты"],["snack","Закуски и рулеты"],["bake","Выпечка"],["fruit","Фрукты"],["sweet","Десерты"]],"hero":["p004","p045","p052","p106","p096"]};
 var STATE=(function(){try{return JSON.parse(document.getElementById('state').textContent)}catch(e){return {v:1,items:[],busy:{}}}})();
 var IN_CLAUDE=!!(window.claude&&window.claude.use);
-if(!IN_CLAUDE){try{var _ls=JSON.parse(localStorage.getItem('assorti.localstate')||'null');if(_ls&&_ls.items)STATE=_ls}catch(e){}}
+
 STATE.busy=STATE.busy||{};
 var $=function(s,r){return (r||document).querySelector(s)};
 var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
 var LS={get:function(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del:function(k){try{localStorage.removeItem(k)}catch(e){}}};
+var API='https://br-broad-thunder-bhv7ishh-assorti.compute.c-10.eu-central-1.aws.neon.tech';
+function api(m,p,b){var h={'Content-Type':'application/json'},pin=LS.get('assorti.pin','');if(pin)h['X-Pin']=pin;return fetch(API+p,{method:m,headers:h,body:b?JSON.stringify(b):undefined,cache:'no-store'}).then(function(r){if(r.status===401){var e=new Error('pin');e.pin=1;throw e}if(!r.ok)throw new Error('http '+r.status);return r.json()})}
 var CATN={};DATA.cats.forEach(function(c){CATN[c[0]]=c[1]});
 var pad=function(n){return String(n).padStart(2,'0')};
 var ymd=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
@@ -487,6 +489,14 @@ function normSnap(s){
 }
 function osStart(){
   if(OS.started)return;OS.started=true;
+  if(!IN_CLAUDE){
+    OS.mode='api';
+    var pull=function(){return api('GET','/orders').then(function(l){OS.list=Array.isArray(l)?l:[];OS.loaded=true;OS.err=false;osEmit()},function(){OS.err=true;OS.loaded=true;osEmit()})};
+    var loc=LS.get('assorti.orders',[]);
+    Promise.all((Array.isArray(loc)?loc:[]).map(function(o){return o&&o.id?api('PUT','/orders/'+o.id,o):null})).then(function(){LS.del('assorti.orders')},function(){}).then(pull);
+    setInterval(function(){if(!document.hidden)pull()},8000);
+    return;
+  }
   if(CAP.db){
     OS.mode='db';
     try{
@@ -501,16 +511,19 @@ function osUpsert(o){
   var i=OS.list.map(function(x){return x.id}).indexOf(o.id);
   if(i<0)OS.list.push(o);else OS.list[i]=o;
   osPersistLocal();osEmit();
+  if(OS.mode==='api'){return api('PUT','/orders/'+o.id,o).catch(function(){toast('Не удалось сохранить заказ. Проверьте интернет.')})}
   if(OS.mode==='db'){return Promise.resolve(OS.col.doc(o.id).set(o)).catch(function(){toast('Не удалось сохранить заказ. Проверьте интернет.')})}
   return Promise.resolve();
 }
 function osStatus(id,st){
   var o=OS.list.filter(function(x){return x.id===id})[0];if(!o)return;
   o.status=st;osPersistLocal();osEmit();
+  if(OS.mode==='api')api('PUT','/orders/'+o.id,o).catch(function(){toast('Не удалось обновить статус.')});
   if(OS.mode==='db')Promise.resolve(OS.col.doc(id).update({status:st})).catch(function(){toast('Не удалось обновить статус.')});
 }
 function osDel(id){
   OS.list=OS.list.filter(function(x){return x.id!==id});osPersistLocal();osEmit();
+  if(OS.mode==='api')api('DELETE','/orders/'+id).catch(function(){toast('Не удалось удалить заказ.')});
   if(OS.mode==='db')Promise.resolve(OS.col.doc(id).delete()).catch(function(){toast('Не удалось удалить заказ.')});
 }
 
@@ -530,8 +543,8 @@ function buildHtml(st){
 function doPublish(){
   if(!IN_CLAUDE){
     var ns={v:1,rev:(STATE.rev||0)+1,items:DRAFT.items,busy:DRAFT.busy};
-    try{localStorage.setItem('assorti.localstate',JSON.stringify(ns))}catch(e){toast('Не хватило памяти браузера. Уберите часть новых фото.');return Promise.resolve()}
-    LS.del('assorti.draft');toast('Сохранено на этом устройстве');setTimeout(function(){location.reload()},500);return Promise.resolve();
+    var b0=$('#pubbtn');if(b0){b0.disabled=true;b0.textContent='Публикую…'}
+    return api('PUT','/state',ns).then(function(){LS.del('assorti.draft');applyState(ns);DRAFT=null;loadDraft();adRender();toast('Опубликовано: клиенты видят изменения')},function(e){if(b0){b0.disabled=false;b0.textContent='Опубликовать'}toast(e&&e.pin?'Неверный PIN-код':'Не удалось опубликовать. Проверьте интернет.')});
   }
   if(!CAP.artifact){toast('Публикация недоступна: войдите как администратор.');return Promise.resolve()}
   var st={v:1,rev:(STATE.rev||0)+1,items:DRAFT.items,busy:DRAFT.busy};
@@ -563,6 +576,7 @@ function openAdmin(){
     box.innerHTML='<div class="ah"><b>Админка</b><button class="sm" data-act="adclose">Закрыть</button></div><div class="w" style="padding-top:40px;text-align:center"><h3 style="font:800 22px var(--fd)">Вход только для администратора</h3><p class="sub">Откройте эту страницу в браузере, где вы вошли в Claude под аккаунтом владельца или редактора.</p></div>';
     return;
   }
+  if(!IN_CLAUDE&&!LS.get('assorti.pin','')){pinForm(box,'admin');return}
   if(!DRAFT)loadDraft();
   osStart();
   if(!AD.month)AD.month=ymd(new Date()).slice(0,7);
@@ -577,8 +591,8 @@ function adRender(){
   var tabs=[['orders','Заказы'],['cal','Календарь'],['menu','Меню']];
   var h='<div class="ah"><b>Админка</b><a class="sm" href="#tv">Экран кухни</a><button class="sm" data-act="adclose">Выйти</button></div>';
   h+='<nav class="tabs" role="tablist">'+tabs.map(function(t){return '<button role="tab" class="'+(AD.tab===t[0]?'on':'')+'" data-adtab="'+t[0]+'" aria-selected="'+(AD.tab===t[0])+'">'+t[1]+'</button>'}).join('')+'</nav>';
-  h+='<div class="ab w">'+(!IN_CLAUDE?'<div class="note">Эта версия работает без общего хранилища: меню, заказы и занятые даты сохраняются только в этом браузере. Клиенты и другие устройства их не видят.</div>':'')+(OS.mode==='local'&&OS.started?'<div class="note">Вы не вошли в общее хранилище: заказы сохраняются только на этом устройстве, экран кухни их не увидит.</div>':'')+(OS.err?'<div class="note">Не удаётся загрузить заказы. Проверьте интернет и войдите в Claude.</div>':'')+(AD.tab==='orders'?adOrders():AD.tab==='cal'?adCal():adMenu())+'</div>';
-  if(dirty()){h+='<div class="pbar"><span>Есть неопубликованные изменения</span><button class="sm" data-act="adreset">Сбросить</button><button class="sm p" id="pubbtn" data-act="adpub">'+(IN_CLAUDE?'Опубликовать':'Сохранить')+'</button></div>'}
+  h+='<div class="ab w">'+''+(OS.mode==='local'&&OS.started?'<div class="note">Вы не вошли в общее хранилище: заказы сохраняются только на этом устройстве, экран кухни их не увидит.</div>':'')+(OS.err?'<div class="note">Не удаётся загрузить заказы. Проверьте интернет и войдите в Claude.</div>':'')+(AD.tab==='orders'?adOrders():AD.tab==='cal'?adCal():adMenu())+'</div>';
+  if(dirty()){h+='<div class="pbar"><span>Есть неопубликованные изменения</span><button class="sm" data-act="adreset">Сбросить</button><button class="sm p" id="pubbtn" data-act="adpub">'+'Опубликовать'+'</button></div>'}
   box.innerHTML=h;box.scrollTop=scr;
 }
 osCbs.push(function(){if(!$('#adm').hidden&&$('#sheet').hidden)adRender();if(!$('#tvv').hidden)tvRender()});
@@ -725,6 +739,7 @@ function openTv(){
   var box=$('#tvv');
   if(!CAP.ready){box.innerHTML='<div class="tvbig">Загрузка…</div>';capP.then(function(){if(location.hash==='#tv')openTv()});return}
   if(!canAdmin()){box.innerHTML='<div class="tvbig">Экран кухни доступен администратору.<br>Войдите в Claude на этом устройстве под аккаунтом владельца или редактора и откройте страницу снова.<br><br><button class="sm" data-act="adclose">Закрыть</button></div>';return}
+  if(!IN_CLAUDE&&!LS.get('assorti.pin','')){pinForm(box,'tv');return}
   osStart();tvRender();clearInterval(tvTimer);tvTimer=setInterval(function(){if(!$('#tvv').hidden)tvRender()},20000);
 }
 function tvDish(id){var it=itemById(id);return it?'<figure><img src="'+esc(srcOf(it))+'" alt=""><figcaption>'+esc(labelOf(it))+'</figcaption></figure>':''}
@@ -811,6 +826,15 @@ document.addEventListener('keydown',function(e){
 $('#more').addEventListener('click',function(){shown+=STEP;renderMenu()});
 $('#sheet').addEventListener('click',function(e){if(e.target.id==='sheet')closeSheet()});
 
+/* ---------- shared state + PIN (public version) ---------- */
+function applyState(st){STATE=st;STATE.busy=STATE.busy||{};ALL=STATE.items||[];BYID=mk(ALL);ITEMS=ALL.filter(function(i){return !i.hid});Object.keys(ST.sel).forEach(function(k){if(!BYID[k])delete ST.sel[k]});renderChips();renderMenu();renderSel();busyCheck()}
+function pinForm(box,w){
+  box.innerHTML='<div class="ah"><b>'+(w==='tv'?'Экран кухни':'Админка')+'</b><button class="sm" data-act="adclose">Закрыть</button></div><div class="w" style="max-width:420px;padding-top:40px;display:grid;gap:12px;font-size:16px"><h3 style="margin:0;font:800 22px var(--fd)">Введите PIN-код</h3><div class="f"><input id="pin-in" type="password" inputmode="numeric" autocomplete="off" placeholder="••••"></div><p class="err" id="pin-err" hidden></p><button class="btn p" id="pin-go">Войти</button></div>';
+  var go=function(){var v=$('#pin-in').value.trim();if(!v)return;LS.set('assorti.pin',v);api('GET','/check').then(function(){if(w==='tv')openTv();else openAdmin()},function(e){LS.del('assorti.pin');var er=$('#pin-err');if(er){er.textContent=e&&e.pin?'Неверный PIN-код':'Нет связи с сервером. Проверьте интернет.';er.hidden=false}})};
+  $('#pin-go').onclick=go;$('#pin-in').onkeydown=function(e){if(e.key==='Enter')go()};
+  setTimeout(function(){try{$('#pin-in').focus()}catch(x){}},50);
+}
+if(!IN_CLAUDE){api('GET','/state').then(function(st){if(st&&Array.isArray(st.items)&&(st.rev||0)>=(STATE.rev||0))applyState(st)},function(){})}
 /* ---------- install app (PWA): phone + TV ---------- */
 var UA=navigator.userAgent||'';
 var IS_TV=/SmartTV|SMART-TV|Tizen|Web0S|webOS|NetCast|BRAVIA|Android TV|GoogleTV|AFT[A-Z]|CrKey|HbbTV|Large Screen/i.test(UA)||(/Android/.test(UA)&&!/Mobile/.test(UA)&&!(navigator.maxTouchPoints>0));
