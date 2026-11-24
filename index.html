@@ -161,7 +161,7 @@ a{color:inherit}
 .ol{display:grid;gap:12px}
 @media(min-width:900px){.ol{grid-template-columns:1fr 1fr}}
 .oc{display:grid;gap:8px;border-left:6px solid var(--am)}
-.oc.cook{border-left-color:#2F7DD1}.oc.ready{border-left-color:#2E9B5B}.oc.done{border-left-color:#B8B1A4;opacity:.75}
+.oc.cook{border-left-color:#2F7DD1}.oc.done{border-left-color:#7A4FD0!important;opacity:1!important}.oc.closed{border-left-color:#B8B1A4;opacity:.75}.oc.ready{border-left-color:#2E9B5B}.oc.done{border-left-color:#B8B1A4;opacity:.75}
 .oc .t{display:flex;gap:10px;align-items:baseline;justify-content:space-between}
 .oc .t b{font:800 18px var(--fd)}
 .oc .t span{font:700 13px var(--fd);color:var(--amd)}
@@ -172,7 +172,7 @@ a{color:inherit}
 .seg{display:flex;gap:6px;flex-wrap:wrap}
 .seg button{flex:1 1 0;min-width:76px;min-height:38px;border:1.5px solid var(--line);border-radius:12px;background:#fff;font:700 12.5px var(--fd);color:var(--mute)}
 .seg button.on{border-color:transparent;color:#fff}
-.seg button.on[data-st=new]{background:#E08A00}.seg button.on[data-st=cook]{background:#2F7DD1}.seg button.on[data-st=ready]{background:#2E9B5B}.seg button.on[data-st=done]{background:#8D8678}
+.seg button.on[data-st=new]{background:#E08A00}.seg button.on[data-st=cook]{background:#2F7DD1}.seg button.on[data-st=ready]{background:#2E9B5B}.seg button.on[data-st=done]{background:#7A4FD0}.seg button.on[data-st=closed]{background:#8D8678}
 .empty{padding:34px 12px;text-align:center;color:var(--mute)}
 .pbar{position:fixed;left:0;right:0;bottom:0;z-index:7;display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0));background:#2A1B00;color:#fff;font:600 14px var(--fd)}
 .note{padding:12px 14px;border-radius:16px;background:#fff;border:1px dashed #F2D58E;color:var(--mute);font-size:14px;margin-bottom:12px}
@@ -261,6 +261,16 @@ a{color:inherit}
 /* chips: wrap instead of hidden horizontal scroll (TV, mouse) */
 .fl{flex-wrap:wrap;overflow-x:visible}
 @media(min-width:900px){.chips{flex-wrap:wrap;overflow-x:visible}}
+/* reports */
+.rs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:4px 0 18px}
+.rs div{padding:14px 16px;border-radius:18px;background:#fff;border:1px solid var(--line)}
+.rs b{display:block;font:800 clamp(20px,4vw,28px)/1.1 var(--fd);white-space:nowrap}
+.rs small{color:var(--mute);font:600 13px var(--fd)}
+.rl{display:grid;gap:8px;margin-bottom:18px}
+.rr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:12px 14px;border-radius:16px;background:#fff;border:1px solid var(--line)}
+.rr b{font:800 15.5px/1.25 var(--fd)}
+.rr .m{grid-column:1/-1;color:var(--mute);font-size:13.5px}
+.rr .v{font:800 15.5px var(--fd);color:var(--amd);white-space:nowrap;text-align:right}
 /* install */
 .inst{display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px 10px 12px 14px;border-radius:20px;background:var(--cream);border:1.5px solid #F7E4B6}
 .inst i{flex:none;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#fff;color:var(--amd);box-shadow:0 3px 10px rgba(80,55,10,.08)}
@@ -531,7 +541,7 @@ function osUpsert(o){
 }
 function osStatus(id,st){
   var o=OS.list.filter(function(x){return x.id===id})[0];if(!o)return;
-  o.status=st;osPersistLocal();osEmit();
+  o.status=st;if(st==='done')o.givenAt=Date.now();if(st==='closed')o.closedAt=Date.now();if(st==='new'){delete o.givenAt;delete o.closedAt}osPersistLocal();osEmit();
   if(OS.mode==='api')api('PUT','/orders/'+o.id,o).catch(function(){toast('Не удалось обновить статус.')});
   if(OS.mode==='db')Promise.resolve(OS.col.doc(id).update({status:st})).catch(function(){toast('Не удалось обновить статус.')});
 }
@@ -578,7 +588,7 @@ function doPublish(){
    Admin
    ===================================================================== */
 var AD={tab:'orders',flt:'today',month:null,day:null,mcat:'all'};
-var STL=[['new','Новый'],['done','Выдан']];
+var STL=[['new','Новый'],['done','Выдан'],['closed','Завершён']];
 var STN={};STL.forEach(function(s){STN[s[0]]=s[1]});
 
 function showLayer(id,on){$(id).hidden=!on;document.body.style.overflow=on?'hidden':''}
@@ -602,10 +612,10 @@ function closeAdmin(){LEFT=true;clearInterval(tvTimer);showLayer('#adm',false);s
 function adRender(){
   var box=$('#adm');if(box.hidden||!DRAFT)return;
   var scr=box.scrollTop;
-  var tabs=[['orders','Заказы'],['cal','Календарь'],['menu','Меню']];
+  var tabs=[['orders','Заказы'],['cal','Календарь'],['menu','Меню'],['rep','Отчёты']];
   var h='<div class="ah"><b>Админка</b><a class="sm" href="#tv">Экран кухни</a><button class="sm" data-act="adclose">Выйти</button></div>';
   h+='<nav class="tabs" role="tablist">'+tabs.map(function(t){return '<button role="tab" class="'+(AD.tab===t[0]?'on':'')+'" data-adtab="'+t[0]+'" aria-selected="'+(AD.tab===t[0])+'">'+t[1]+'</button>'}).join('')+'</nav>';
-  h+='<div class="ab w">'+''+(OS.mode==='local'&&OS.started?'<div class="note">Вы не вошли в общее хранилище: заказы сохраняются только на этом устройстве, экран кухни их не увидит.</div>':'')+(OS.err?'<div class="note">Не удаётся загрузить заказы. Проверьте интернет и войдите в Claude.</div>':'')+(AD.tab==='orders'?adOrders():AD.tab==='cal'?adCal():adMenu())+'</div>';
+  h+='<div class="ab w">'+''+(OS.mode==='local'&&OS.started?'<div class="note">Вы не вошли в общее хранилище: заказы сохраняются только на этом устройстве, экран кухни их не увидит.</div>':'')+(OS.err?'<div class="note">Не удаётся загрузить заказы. Проверьте интернет и войдите в Claude.</div>':'')+(AD.tab==='orders'?adOrders():AD.tab==='cal'?adCal():AD.tab==='rep'?adRep():adMenu())+'</div>';
   if(dirty()){h+='<div class="pbar"><span>Есть неопубликованные изменения</span><button class="sm" data-act="adreset">Сбросить</button><button class="sm p" id="pubbtn" data-act="adpub">'+'Опубликовать'+'</button></div>'}
   box.innerHTML=h;box.scrollTop=scr;
 }
@@ -616,9 +626,9 @@ function todayS(){return ymd(new Date())}
 function ordSort(a,b){return (a.date||'9999').localeCompare(b.date||'9999')||(a.time||'').localeCompare(b.time||'')||(a.ts||0)-(b.ts||0)}
 function adOrders(){
   var t=todayS(),L=OS.list.slice().sort(ordSort);
-  var f={today:function(o){return o.date===t&&o.status!=='done'},soon:function(o){return o.date>=t&&o.status!=='done'},all:function(){return true},done:function(o){return o.status==='done'}};
+  var isN=function(o){return (o.status||'new')==='new'};var f={today:function(o){return o.date===t&&isN(o)},soon:function(o){return o.date>=t&&isN(o)},all:function(o){return o.status!=='closed'},done:function(o){return o.status==='done'}};
   var cnt=function(k){return L.filter(f[k]).length};
-  var chips=[['today','Сегодня'],['soon','Ближайшие'],['all','Все'],['done','Выданные']];
+  var chips=[['today','Сегодня'],['soon','Ближайшие'],['all','Все'],['done','Посуда']];
   var h='<div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">Заказы</h3><button class="sm p" data-act="ordnew">+ Новый заказ</button></div>';
   h+='<div class="fl">'+chips.map(function(c){return '<button class="chip'+(AD.flt===c[0]?' on':'')+'" data-flt="'+c[0]+'">'+c[1]+' <small>'+cnt(c[0])+'</small></button>'}).join('')+'</div>';
   var R=L.filter(f[AD.flt]);
@@ -637,7 +647,7 @@ function orderCard(o){
   '<div class="m">'+esc(o.type||'')+(o.guests?' · '+esc(o.guests)+' гостей':'')+(o.sum?' · '+esc(o.sum):'')+(o.phone?' · <a href="https://wa.me/'+esc(dg)+'" target="_blank" rel="noopener">'+esc(o.phone)+'</a>':'')+'</div>'+
   dishThumbs(o,10)+(o.note?'<div class="m">'+esc(o.note)+'</div>':'')+
   '<div class="seg">'+STL.map(function(s){return '<button data-st="'+s[0]+'" data-ost="'+esc(o.id)+'" class="'+((o.status||'new')===s[0]?'on':'')+'">'+s[1]+'</button>'}).join('')+'</div>'+
-  '<div class="row"><button class="sm" data-oedit="'+esc(o.id)+'">Изменить</button></div></div>';
+  (o.status==='done'?'<div class="note" style="margin:0">Заказ выдан, ждём возврат посуды. Когда посуду вернут, нажмите «Завершён».</div>':'')+'<div class="row"><button class="sm" data-oedit="'+esc(o.id)+'">Изменить</button></div></div>';
 }
 
 /* calendar tab */
@@ -670,6 +680,34 @@ function adMenu(){
   var L=its.filter(function(i){return AD.mcat==='all'||(AD.mcat==='hid'?i.hid:i.cat===AD.mcat)});
   var h='<div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">Меню</h3></div><div class="fl">'+chips.map(function(c){return '<button class="chip'+(AD.mcat===c[0]?' on':'')+'" data-mcat="'+c[0]+'">'+esc(c[1])+' <small>'+c[2]+'</small></button>'}).join('')+'</div>';
   h+='<div class="ag"><button class="ai add" data-act="itnew">+ Добавить блюдо</button>'+L.map(function(i){return '<button class="ai'+(i.hid?' h':'')+'" data-itedit="'+esc(i.id)+'"><img src="'+esc(srcOf(i))+'" alt="" loading="lazy">'+(i.hid?'<em>скрыто</em>':'')+'<div>'+esc(labelOf(i))+'<small>'+(i.p?esc(i.p):'цена не указана')+'</small></div></button>'}).join('')+'</div>';
+  return h;
+}
+
+/* reports tab */
+function money(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,' ')+' ₸'}
+function sumOf(o){var n=parseInt(String(o.sum||'').replace(/\D/g,''),10);return isNaN(n)?0:n}
+function adRep(){
+  var per=AD.rper||'month',now=new Date(),start;
+  if(per==='today')start=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  else if(per==='week')start=new Date(now.getFullYear(),now.getMonth(),now.getDate()-6);
+  else if(per==='month')start=new Date(now.getFullYear(),now.getMonth(),1);
+  else start=new Date(0);
+  var t0=start.getTime();
+  var when=function(o){if(o.closedAt)return o.closedAt;if(o.date){var p=o.date.split('-');return new Date(+p[0],+p[1]-1,+p[2]).getTime()}return o.ts||0};
+  var L=OS.list.filter(function(o){return o.status==='closed'&&when(o)>=t0}).sort(function(a,b){return when(b)-when(a)});
+  var total=0;L.forEach(function(o){total+=sumOf(o)});
+  var cl={};L.forEach(function(o){var k=String(o.phone||'').replace(/\D/g,'').slice(-10)||('n:'+(o.name||''));var c=cl[k]||(cl[k]={name:o.name,phone:o.phone,n:0,sum:0,last:0});c.n++;c.sum+=sumOf(o);if(when(o)>c.last){c.last=when(o);c.name=o.name||c.name;c.phone=o.phone||c.phone}});
+  var CL=Object.keys(cl).map(function(k){return cl[k]}).sort(function(a,b){return b.sum-a.sum||b.n-a.n});
+  var pend=OS.list.filter(function(o){return o.status==='done'}).length;
+  var chips=[['today','Сегодня'],['week','7 дней'],['month','Этот месяц'],['all','Всё время']];
+  var h='<div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">Отчёты</h3></div>';
+  h+='<div class="fl">'+chips.map(function(c){return '<button class="chip'+(per===c[0]?' on':'')+'" data-rper="'+c[0]+'">'+c[1]+'</button>'}).join('')+'</div>';
+  if(!OS.loaded)return h+'<div class="empty">Загрузка…</div>';
+  h+='<div class="rs"><div><b>'+L.length+'</b><small>завершённых заказов</small></div><div><b>'+money(total)+'</b><small>выручка</small></div><div><b>'+CL.length+'</b><small>клиентов</small></div><div><b>'+(L.length?money(Math.round(total/L.length)):'—')+'</b><small>средний чек</small></div></div>';
+  if(pend)h+='<div class="note">Посуда ещё не возвращена по '+pend+' заказ'+(pend%10===1&&pend%100!==11?'у':'ам')+'. Они попадут в отчёт после нажатия «Завершён».</div>';
+  if(!L.length)return h+'<div class="empty">За этот период завершённых заказов нет. Заказ попадает сюда после «Выдан» → «Завершён».</div>';
+  h+='<h3>Клиенты</h3><div class="rl">'+CL.map(function(c){var dg=String(c.phone||'').replace(/\D/g,'');return '<div class="rr"><b>'+esc(c.name||'Без имени')+'</b><span class="v">'+money(c.sum)+'</span><div class="m">'+(c.phone?'<a href="https://wa.me/'+esc(dg)+'" target="_blank" rel="noopener" style="color:var(--amd);font-weight:700">'+esc(fmtPh(c.phone))+'</a> · ':'')+c.n+' заказ'+(c.n===1?'':c.n<5?'а':'ов')+' · последний '+esc(fmtD(ymd(new Date(c.last))))+'</div></div>'}).join('')+'</div>';
+  h+='<h3>Завершённые заказы</h3><div class="rl">'+L.map(function(o){var q=0;(o.dishes||[]).forEach(function(id){q+=((o.qty||{})[id]||1)});return '<div class="rr"><b>'+esc(o.name||'Без имени')+'</b><span class="v">'+(sumOf(o)?money(sumOf(o)):'—')+'</span><div class="m">'+esc(fmtD(o.date))+' · '+esc(o.type||'')+(o.guests?' · '+esc(o.guests)+' гостей':'')+' · блюд: '+q+(o.phone?' · '+esc(fmtPh(o.phone)):'')+' <button class="sm" data-oedit="'+esc(o.id)+'" style="min-height:30px;padding:0 10px;margin-left:4px">Открыть</button></div></div>'}).join('')+'</div>';
   return h;
 }
 
@@ -770,9 +808,9 @@ function tvOrder(o,compact){
 function tvRender(){
   var box=$('#tvv');if(box.hidden)return;
   var now=new Date(),t=ymd(now),L=OS.list.slice().sort(ordSort);
-  var today=L.filter(function(o){return o.date===t&&o.status!=='done'});
+  var today=L.filter(function(o){return o.date===t&&(o.status||'new')==='new'});
   var col=function(st,title){var a=today;return '<section class="tc '+st+'"><h2><span>'+title+'</span><span>'+a.length+'</span></h2><div class="bd">'+(a.length?a.map(function(o){return tvOrder(o)}).join(''):'<div class="em">Пусто</div>')+'</div></section>'};
-  var nx=L.filter(function(o){return o.date>t&&o.status!=='done'}).slice(0,8);
+  var nx=L.filter(function(o){return o.date>t&&(o.status||'new')==='new'}).slice(0,8);
   var h='<div class="tvh"><h1>Заказы на сегодня</h1><span class="dt">'+esc(fmtL(t))+'</span><span class="ck2">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</span><button class="sm x" data-inst="fs">'+(document.fullscreenElement||document.webkitFullscreenElement?'Свернуть':'Во весь экран')+'</button><a class="sm" href="#admin">Админка</a><button class="sm" data-act="adclose">Выйти</button></div>';
   if(OS.err)h+='<div class="note">Нет связи с хранилищем заказов.</div>';
   if(OS.mode==='local')h+='<div class="note">Экран работает без общего входа: показаны только заказы, созданные на этом устройстве.</div>';
@@ -850,6 +888,7 @@ document.addEventListener('keydown',function(e){
 $('#more').addEventListener('click',function(){shown+=STEP;renderMenu()});
 $('#sheet').addEventListener('click',function(e){if(e.target.id==='sheet')closeSheet()});
 
+document.addEventListener('click',function(e){var t=e.target.closest('[data-rper]');if(!t)return;AD.rper=t.dataset.rper;adRender()});
 document.addEventListener('click',function(e){
   var t=e.target.closest('[data-qi],[data-qd]');if(!t||!OF)return;e.preventDefault();ordRead();OF.qty=OF.qty||{};
   if(t.dataset.qi){var id=t.dataset.qi;OF.qty[id]=(OF.qty[id]||1)+1}
