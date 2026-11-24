@@ -231,7 +231,7 @@ a{color:inherit}
 .tc{display:flex;flex-direction:column;min-height:0;border-radius:1.2em;background:#fff;border:1px solid var(--line);overflow:hidden}
 .tc>h2{margin:0;padding:.7em 1em;font:800 1.25em var(--fd);display:flex;justify-content:space-between;color:#fff;background:#E08A00}
 .tc.cook>h2{background:#2F7DD1}.tc.ready>h2{background:#2E9B5B}.tc.next>h2{background:#2A1B00}
-.tc .bd{flex:1;min-height:0;overflow:hidden;padding:.7em;display:grid;gap:.7em;align-content:start}
+.tc .bd{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;padding:.7em;display:grid;gap:.7em;align-content:start}
 .to{padding:.8em .9em;border-radius:1em;background:var(--soft);border:1px solid var(--line)}
 .to .h{display:flex;justify-content:space-between;gap:.6em;align-items:baseline}
 .to .h b{font:800 1.5em/1.1 var(--fd)}
@@ -300,16 +300,16 @@ a{color:inherit}
   </section>
 
   <section class="formwrap" id="zayavka">
-    <h2 class="h2">Заявка на мероприятие</h2>
+    <h2 class="h2">Оформить заказ</h2>
     <p class="sub">Заявка откроется в WhatsApp готовым сообщением. Стоимость и детали уточним в чате.</p>
     <div class="form" id="form">
       <div id="selbox"></div>
       <div class="f"><label for="f-name">Ваше имя</label><input id="f-name" autocomplete="name" placeholder="Например, Айгерим"></div>
       <div class="f"><label for="f-phone">Номер телефона</label><input id="f-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 700 000 00 00"></div>
-      <div class="f"><label for="f-type">Мероприятие</label><select id="f-type"><option>Свадьба</option><option>Юбилей</option><option>Той</option><option>Корпоратив</option><option>Банкет в ресторане</option><option>Другое</option></select></div>
+      <div class="f"><label for="f-type">Как получить</label><select id="f-type"><option>На вынос</option><option>Доставка</option></select></div>
       <div class="two"><div class="f"><label for="f-date">Дата</label><input id="f-date" type="date"></div><div class="f"><label for="f-guests">Гостей</label><input id="f-guests" type="number" inputmode="numeric" min="1" max="800" placeholder="50"></div></div>
       <p class="warn" id="busywarn" hidden>На эту дату у шефа уже есть бронь. Вы можете отправить заявку: шеф уточнит, сможет ли взять заказ, или предложит другую дату.</p>
-      <div class="f"><label for="f-note">Пожелания</label><textarea id="f-note" placeholder="Время, адрес, что ещё нужно"></textarea></div>
+      <div class="f"><label for="f-note">Пожелания</label><textarea id="f-note" placeholder="Время, адрес доставки, пожелания"></textarea></div>
       <p class="err" id="err" role="alert" hidden></p>
       <button class="btn p" id="send" style="min-height:56px;font-size:16.5px">Отправить заявку в WhatsApp</button>
     </div>
@@ -364,7 +364,7 @@ function labelOf(it){return it.t||((CATN[it.cat]||'Блюдо')+' №'+(it.n||''
 function mk(items){var m={};items.forEach(function(i){m[i.id]=i});return m}
 var ALL=STATE.items,BYID=mk(ALL);
 var ITEMS=ALL.filter(function(i){return !i.hid});
-var ST=LS.get('assorti.v2',{sel:{},me:{name:'',phone:'',type:'Свадьба',date:'',guests:'',note:''}});
+var ST=LS.get('assorti.v2',{sel:{},me:{name:'',phone:'',type:'На вынос',date:'',guests:'',note:''}});
 var save=function(){LS.set('assorti.v2',ST)};
 var cat='all',shown=24,STEP=24,lbList=[],lbI=0;
 
@@ -436,7 +436,7 @@ function lbClose(){$('#lbx').hidden=true;$('#lbx').innerHTML='';document.body.st
 /* ---------- request form ---------- */
 var F={name:'#f-name',phone:'#f-phone',type:'#f-type',date:'#f-date',guests:'#f-guests',note:'#f-note'};
 function busyCheck(){var d=ST.me.date;$('#busywarn').hidden=!(d&&STATE.busy[d])}
-Object.keys(F).forEach(function(k){var el=$(F[k]);el.value=ST.me[k]||(k==='type'?'Свадьба':'');var h=function(){ST.me[k]=el.value;save();if(k==='date')busyCheck()};el.addEventListener('input',h);el.addEventListener('change',h)});
+Object.keys(F).forEach(function(k){var el=$(F[k]);if(k==='type'&&['На вынос','Доставка'].indexOf(ST.me.type)<0)ST.me.type='На вынос';el.value=ST.me[k]||'';var h=function(){ST.me[k]=el.value;save();if(k==='date')busyCheck()};el.addEventListener('input',h);el.addEventListener('change',h)});
 $('#f-date').min=ymd(new Date());busyCheck();
 $('#send').addEventListener('click',function(){
   var m=ST.me,err=$('#err'),digits=String(m.phone||'').replace(/\D/g,''),a=ids(),msg='';
@@ -447,7 +447,7 @@ $('#send').addEventListener('click',function(){
   err.hidden=true;
   var t='';
   if(m.date&&STATE.busy[m.date])t+='⚠ ДАТА '+fmtD(m.date)+' УЖЕ ЗАНЯТА В КАЛЕНДАРЕ. Брать ли заказ на эту дату?\n\n';
-  t+='Заявка на мероприятие (Ассорти)\nИмя: '+m.name.trim()+'\nТелефон: '+m.phone.trim()+'\nМероприятие: '+m.type;
+  t+='Заказ (Ассорти)\nИмя: '+m.name.trim()+'\nТелефон: '+m.phone.trim()+'\nПолучение: '+m.type;
   if(m.date)t+='\nДата: '+m.date;
   if(m.guests)t+='\nГостей: '+m.guests;
   if(a.length)t+='\n\nБлюда:\n'+a.map(function(id,k){var it=BYID[id];return (k+1)+'. '+labelOf(it)+(it.p?' — '+it.p:'')}).join('\n');
@@ -706,7 +706,7 @@ function ordSheet(){
   '<div class="f"><label for="o-name">Имя клиента</label><input id="o-name" value="'+esc(OF.name)+'"></div>'+
   '<div class="f"><label for="o-phone">Телефон</label><input id="o-phone" type="tel" inputmode="tel" value="'+esc(OF.phone)+'"></div>'+
   '<div class="two"><div class="f"><label for="o-date">Дата</label><input id="o-date" type="date" value="'+esc(OF.date)+'"></div><div class="f"><label for="o-time">Время</label><input id="o-time" type="time" value="'+esc(OF.time)+'"></div></div>'+
-  '<div class="two"><div class="f"><label for="o-type">Мероприятие</label><select id="o-type">'+['Свадьба','Юбилей','Той','Корпоратив','Банкет в ресторане','На вынос','Другое'].map(function(x){return '<option'+(OF.type===x?' selected':'')+'>'+x+'</option>'}).join('')+'</select></div><div class="f"><label for="o-guests">Гостей</label><input id="o-guests" type="number" inputmode="numeric" value="'+esc(OF.guests)+'"></div></div>'+
+  '<div class="two"><div class="f"><label for="o-type">Как получить</label><select id="o-type">'+['На вынос','Доставка'].map(function(x){return '<option'+(OF.type===x?' selected':'')+'>'+x+'</option>'}).join('')+'</select></div><div class="f"><label for="o-guests">Гостей</label><input id="o-guests" type="number" inputmode="numeric" value="'+esc(OF.guests)+'"></div></div>'+
   '<div class="f"><label>Блюда ('+OF.dishes.length+')</label>'+dishThumbs(OF,16)+'<button class="sm" data-act="pickopen" style="justify-self:start">Выбрать из меню</button></div>'+
   '<div class="f"><label for="o-note">Комментарий для кухни</label><textarea id="o-note" placeholder="Количество, пожелания, адрес">'+esc(OF.note)+'</textarea></div>'+
   '<div class="f"><label for="o-sum">Сумма</label><input id="o-sum" value="'+esc(OF.sum)+'" placeholder="Например, 450 000 ₸"></div>'+
@@ -718,7 +718,7 @@ function ordRead(){
   ['name','phone','date','time','type','guests','note','sum'].forEach(function(k){OF[k]=$('#o-'+k).value.trim()});OF._busy=$('#o-busy').checked;
 }
 function ordNew(date){
-  OF={id:'o'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:'',phone:'',date:date||todayS(),time:'',type:'Свадьба',guests:'',dishes:[],note:'',sum:'',status:'new',ts:Date.now(),_new:true,_busy:true};ordSheet();
+  OF={id:'o'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:'',phone:'',date:date||todayS(),time:'',type:'На вынос',guests:'',dishes:[],note:'',sum:'',status:'new',ts:Date.now(),_new:true,_busy:true};ordSheet();
 }
 function ordEdit(id){
   var o=OS.list.filter(function(x){return x.id===id})[0];if(!o)return;
@@ -740,7 +740,7 @@ function openTv(){
   if(!CAP.ready){box.innerHTML='<div class="tvbig">Загрузка…</div>';capP.then(function(){if(location.hash==='#tv')openTv()});return}
   if(!canAdmin()){box.innerHTML='<div class="tvbig">Экран кухни доступен администратору.<br>Войдите в Claude на этом устройстве под аккаунтом владельца или редактора и откройте страницу снова.<br><br><button class="sm" data-act="adclose">Закрыть</button></div>';return}
   if(!IN_CLAUDE&&!LS.get('assorti.pin','')){pinForm(box,'tv');return}
-  osStart();tvRender();clearInterval(tvTimer);tvTimer=setInterval(function(){if(!$('#tvv').hidden)tvRender()},20000);
+  osStart();tvRender();tvAuto();clearInterval(tvTimer);tvTimer=setInterval(function(){if(!$('#tvv').hidden)tvRender()},20000);
 }
 function tvDish(id){var it=itemById(id);return it?'<figure><img src="'+esc(srcOf(it))+'" alt=""><figcaption>'+esc(labelOf(it))+'</figcaption></figure>':''}
 function tvOrder(o,compact){
@@ -757,8 +757,12 @@ function tvRender(){
   if(OS.err)h+='<div class="note">Нет связи с хранилищем заказов.</div>';
   if(OS.mode==='local')h+='<div class="note">Экран работает без общего входа: показаны только заказы, созданные на этом устройстве.</div>';
   h+='<div class="tvm">'+col('new','Новые')+'<section class="tc next"><h2><span>Ближайшие дни</span></h2><div class="bd">'+(nx.length?nx.map(function(o){return tvOrder(o,true)}).join(''):'<div class="em">Заказов на ближайшие дни нет</div>')+'</div></section></div>';
+  var sc=[].map.call(box.querySelectorAll('.bd'),function(b){return b.scrollTop});
   box.innerHTML=h;
+  [].forEach.call(box.querySelectorAll('.bd'),function(b,i){b.scrollTop=sc[i]||0});
 }
+var tvScroll=null,tvSt={};
+function tvAuto(){clearInterval(tvScroll);tvSt={};tvScroll=setInterval(function(){if($('#tvv').hidden)return;[].forEach.call(document.querySelectorAll('#tvv .bd'),function(b,i){var max=b.scrollHeight-b.clientHeight,s=tvSt[i]||(tvSt[i]={w:75,top:0});if(max<=2){b.scrollTop=0;return}if(s.w>0){s.w--;return}if(s.top){b.scrollTop=0;s.y=0;s.top=0;s.w=75;return}if(s.y==null||Math.abs(s.y-b.scrollTop)>3)s.y=b.scrollTop;if(b.scrollTop>=max-1){s.top=1;s.w=75;return}s.y+=1;b.scrollTop=s.y})},40)}
 
 /* =====================================================================
    events + routing
