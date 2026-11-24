@@ -227,7 +227,7 @@ a{color:inherit}
 .tvh .dt{font:700 1.3em var(--fd);color:var(--amd)}.tvh .dt:first-letter{text-transform:uppercase}
 .tvh .ck2{margin-left:auto;font:800 2.6em/1 var(--fd);font-variant-numeric:tabular-nums}
 .tvh .x{margin-left:.6em}
-.tvm{flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,1fr) .85fr;gap:1em}
+.tvm{flex:1;min-height:0;display:grid;grid-template-columns:1.7fr 1fr;gap:1em}
 .tc{display:flex;flex-direction:column;min-height:0;border-radius:1.2em;background:#fff;border:1px solid var(--line);overflow:hidden}
 .tc>h2{margin:0;padding:.7em 1em;font:800 1.25em var(--fd);display:flex;justify-content:space-between;color:#fff;background:#E08A00}
 .tc.cook>h2{background:#2F7DD1}.tc.ready>h2{background:#2E9B5B}.tc.next>h2{background:#2A1B00}
@@ -551,7 +551,7 @@ function doPublish(){
    Admin
    ===================================================================== */
 var AD={tab:'orders',flt:'today',month:null,day:null,mcat:'all'};
-var STL=[['new','Новый'],['cook','Готовится'],['ready','Готово'],['done','Выдан']];
+var STL=[['new','Новый'],['done','Выдан']];
 var STN={};STL.forEach(function(s){STN[s[0]]=s[1]});
 
 function showLayer(id,on){$(id).hidden=!on;document.body.style.overflow=on?'hidden':''}
@@ -736,12 +736,12 @@ function tvRender(){
   var box=$('#tvv');if(box.hidden)return;
   var now=new Date(),t=ymd(now),L=OS.list.slice().sort(ordSort);
   var today=L.filter(function(o){return o.date===t&&o.status!=='done'});
-  var col=function(st,title){var a=today.filter(function(o){return (o.status||'new')===st});return '<section class="tc '+st+'"><h2><span>'+title+'</span><span>'+a.length+'</span></h2><div class="bd">'+(a.length?a.map(function(o){return tvOrder(o)}).join(''):'<div class="em">Пусто</div>')+'</div></section>'};
+  var col=function(st,title){var a=today;return '<section class="tc '+st+'"><h2><span>'+title+'</span><span>'+a.length+'</span></h2><div class="bd">'+(a.length?a.map(function(o){return tvOrder(o)}).join(''):'<div class="em">Пусто</div>')+'</div></section>'};
   var nx=L.filter(function(o){return o.date>t&&o.status!=='done'}).slice(0,8);
   var h='<div class="tvh"><h1>Заказы на сегодня</h1><span class="dt">'+esc(fmtL(t))+'</span><span class="ck2">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</span><button class="sm x" data-inst="fs">Во весь экран</button><a class="sm" href="#admin">Админка</a><button class="sm" data-act="adclose">Выйти</button></div>';
   if(OS.err)h+='<div class="note">Нет связи с хранилищем заказов.</div>';
   if(OS.mode==='local')h+='<div class="note">Экран работает без общего входа: показаны только заказы, созданные на этом устройстве.</div>';
-  h+='<div class="tvm">'+col('new','Новые')+col('cook','Готовятся')+col('ready','Готово')+'<section class="tc next"><h2><span>Ближайшие дни</span></h2><div class="bd">'+(nx.length?nx.map(function(o){return tvOrder(o,true)}).join(''):'<div class="em">Заказов на ближайшие дни нет</div>')+'</div></section></div>';
+  h+='<div class="tvm">'+col('new','Новые')+'<section class="tc next"><h2><span>Ближайшие дни</span></h2><div class="bd">'+(nx.length?nx.map(function(o){return tvOrder(o,true)}).join(''):'<div class="em">Заказов на ближайшие дни нет</div>')+'</div></section></div>';
   box.innerHTML=h;
 }
 
