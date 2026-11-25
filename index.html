@@ -391,7 +391,7 @@ var $=function(s,r){return (r||document).querySelector(s)};
 var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
 var LS={get:function(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del:function(k){try{localStorage.removeItem(k)}catch(e){}}};
 var API='https://br-broad-thunder-bhv7ishh-assorti.compute.c-10.eu-central-1.aws.neon.tech';
-function api(m,p,b,px){var h={'Content-Type':'application/json'},pin=px||LS.get('assorti.pin','')||LS.get('assorti.kpin','');if(pin)h['X-Pin']=pin;return fetch(API+p,{method:m,headers:h,body:b?JSON.stringify(b):undefined,cache:'no-store'}).then(function(r){if(r.status===401){var e=new Error('pin');e.pin=1;throw e}if(!r.ok)throw new Error('http '+r.status);return r.json()})}
+function api(m,p,b,px){var h={'Content-Type':'application/json'},pin=px||LS.get('assorti.pin','')||LS.get('assorti.kpin','');if(pin)h['X-Pin']=pin;return fetch(API+p,{method:m,headers:h,body:b?JSON.stringify(b):undefined,cache:'no-store'}).then(function(r){if(r.status===401){var e=new Error('pin');e.pin=1;throw e}if(r.status===409){var c=new Error('conflict');c.conflict=1;throw c}if(!r.ok)throw new Error('http '+r.status);return r.json()})}
 var CATN={};DATA.cats.forEach(function(c){CATN[c[0]]=c[1]});
 var pad=function(n){return String(n).padStart(2,'0')};
 var ymd=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
@@ -580,7 +580,18 @@ function loadDraft(){
   DRAFT=(d&&d.base===(STATE.rev||0))?d.state:JSON.parse(JSON.stringify({v:1,rev:STATE.rev||0,items:STATE.items,busy:STATE.busy}));
   DRAFT.items=DRAFT.items||[];DRAFT.busy=DRAFT.busy||{};
 }
-function saveDraft(){LS.set('assorti.draft',{base:STATE.rev||0,state:DRAFT})}
+function saveDraft(){LS.set('assorti.draft',{base:STATE.rev||0,state:DRAFT});if(!IN_CLAUDE)autoPub()}
+var PUB={busy:false,again:false,t:0};
+function autoPub(){clearTimeout(PUB.t);PUB.t=setTimeout(function(){if(DRAFT&&dirty())doPublish()},700)}
+/* merge local edits (made on top of oldSt) onto a fresher server state */
+function rebase(oldSt,dr,fresh){
+  var ob=mk(oldSt.items||[]),db=mk(dr.items||[]),fb=mk(fresh.items||[]);
+  var items=(fresh.items||[]).map(function(i){var d=db[i.id],o=ob[i.id];if(!d&&o)return null;if(d&&(!o||JSON.stringify(d)!==JSON.stringify(o)))return d;return i}).filter(Boolean);
+  (dr.items||[]).forEach(function(d){if(!fb[d.id]&&!ob[d.id])items.unshift(d)});
+  var busy=JSON.parse(JSON.stringify(fresh.busy||{})),ob2=oldSt.busy||{},db2=dr.busy||{};
+  Object.keys(db2).forEach(function(k){if(!ob2[k])busy[k]=db2[k]});Object.keys(ob2).forEach(function(k){if(!db2[k])delete busy[k]});
+  return {v:1,rev:fresh.rev||0,items:items,busy:busy};
+}
 function dirty(){return JSON.stringify({i:DRAFT.items,b:DRAFT.busy})!==JSON.stringify({i:STATE.items,b:STATE.busy})}
 function buildHtml(st){
   var json=JSON.stringify(st).replace(/</g,'\\u003c');
@@ -588,9 +599,24 @@ function buildHtml(st){
 }
 function doPublish(){
   if(!IN_CLAUDE){
-    var ns={v:1,rev:(STATE.rev||0)+1,items:DRAFT.items,busy:DRAFT.busy};
-    var b0=$('#pubbtn');if(b0){b0.disabled=true;b0.textContent='Публикую…'}
-    return api('PUT','/state',ns).then(function(){LS.del('assorti.draft');applyState(ns);DRAFT=null;loadDraft();adRender();toast('Опубликовано: клиенты видят изменения')},function(e){if(b0){b0.disabled=false;b0.textContent='Опубликовать'}toast(e&&e.pin?'Неверный PIN-код':'Не удалось опубликовать. Проверьте интернет.')});
+    if(!STATE_OK){toast('Меню ещё не загрузилось с сервера, сохранение отложено.');return Promise.resolve()}
+    if(PUB.busy){PUB.again=true;return Promise.resolve()}
+    PUB.busy=true;var b0=$('#pubbtn');if(b0){b0.disabled=true;b0.textContent='Сохраняю…'}
+    var send=function(retry){
+      var sent={items:DRAFT.items,busy:DRAFT.busy},base=STATE.rev||0;
+      return api('PUT','/state',{base:base,items:sent.items,busy:sent.busy}).then(function(r){
+        var ns=(r&&r.state)||{v:1,rev:base+1,items:sent.items,busy:sent.busy};
+        var later=DRAFT&&JSON.stringify({i:DRAFT.items,b:DRAFT.busy})!==JSON.stringify({i:sent.items,b:sent.busy})?DRAFT:null;
+        STATE=ns;LS.del('assorti.draft');DRAFT=null;applyState(ns);loadDraft();
+        if(later){DRAFT=rebase({items:sent.items,busy:sent.busy},later,ns);PUB.again=true}
+        return 'ok';
+      },function(e){
+        if(e&&e.conflict&&retry)return api('GET','/state').then(function(st){applyState(st);return send(false)});
+        throw e;
+      });
+    };
+    return send(true).then(function(){PUB.busy=false;if(!$('#adm').hidden)adRender();toast('Сохранено ✓ Клиенты видят изменения');if(PUB.again){PUB.again=false;autoPub()}},
+      function(e){PUB.busy=false;if(!$('#adm').hidden)adRender();toast(e&&e.pin?'Неверный PIN-код':e&&e.conflict?'Меню одновременно меняли на другом устройстве. Обновите страницу и проверьте.':'Не удалось сохранить: нет интернета. Изменения остались на этом устройстве, повторю через 15 секунд.');if(!(e&&(e.pin||e.conflict))){clearTimeout(PUB.t);PUB.t=setTimeout(function(){if(DRAFT&&dirty())doPublish()},15000)}});
   }
   if(!CAP.artifact){toast('Публикация недоступна: войдите как администратор.');return Promise.resolve()}
   var st={v:1,rev:(STATE.rev||0)+1,items:DRAFT.items,busy:DRAFT.busy};
@@ -623,6 +649,7 @@ function openAdmin(){
     return;
   }
   if(!IN_CLAUDE&&!LS.get('assorti.pin','')){pinForm(box,'admin');return}
+  if(!IN_CLAUDE&&!STATE_OK){box.innerHTML='<div class="ah"><b>Админка</b><button class="sm" data-act="adclose">Закрыть</button></div><div class="tvbig" style="padding:60px 20px">Загружаю меню с сервера…</div>';(STATE_P||loadState()).then(function(){if(location.hash==='#admin')openAdmin()},function(){if(location.hash!=='#admin')return;box.innerHTML='<div class="ah"><b>Админка</b><button class="sm" data-act="adclose">Закрыть</button></div><div class="w" style="padding-top:40px;text-align:center;display:grid;gap:12px;justify-items:center"><h3 style="margin:0;font:800 20px var(--fd)">Нет связи с сервером</h3><p class="sub" style="margin:0">Админка откроется, когда загрузится актуальное меню. Так старое меню не перезапишет новые цены.</p><button class="sm p" data-retrystate>Повторить</button></div>'});return}
   if(!DRAFT)loadDraft();
   osStart();
   if(!AD.month)AD.month=ymd(new Date()).slice(0,7);
@@ -638,7 +665,7 @@ function adRender(){
   var h='<div class="ah"><b>Админка</b><a class="sm" href="#tv">Экран кухни</a>'+(IN_CLAUDE?'':'<button class="sm" data-pinout>Сменить PIN</button>')+'<button class="sm" data-act="adclose">Выйти</button></div>';
   h+='<nav class="tabs" role="tablist">'+tabs.map(function(t){return '<button role="tab" class="'+(AD.tab===t[0]?'on':'')+'" data-adtab="'+t[0]+'" aria-selected="'+(AD.tab===t[0])+'">'+t[1]+'</button>'}).join('')+'</nav>';
   h+='<div class="ab w">'+''+(OS.mode==='local'&&OS.started?'<div class="note">Вы не вошли в общее хранилище: заказы сохраняются только на этом устройстве, экран кухни их не увидит.</div>':'')+(OS.err?'<div class="note">Не удаётся загрузить заказы. Проверьте интернет и войдите в Claude.</div>':'')+(AD.tab==='orders'?adOrders():AD.tab==='cal'?adCal():AD.tab==='rep'?adRep():adMenu())+'</div>';
-  if(dirty()){h+='<div class="pbar"><span>Есть неопубликованные изменения</span><button class="sm" data-act="adreset">Сбросить</button><button class="sm p" id="pubbtn" data-act="adpub">'+'Опубликовать'+'</button></div>'}
+  if(dirty()){h+='<div class="pbar"><span>'+(IN_CLAUDE?'Есть неопубликованные изменения':'Сохраняю изменения на сервер…')+'</span><button class="sm" data-act="adreset">Сбросить</button><button class="sm p" id="pubbtn" data-act="adpub">'+'Опубликовать'+'</button></div>'}
   box.innerHTML=h;box.scrollTop=scr;
 }
 osCbs.push(function(){if(!$('#adm').hidden&&$('#sheet').hidden)adRender();if(!$('#tvv').hidden)tvRender()});
@@ -896,15 +923,15 @@ document.addEventListener('click',function(e){
     else if(a==='itsave'){itRead();if(ITNEW&&!IT.im){var s=$('#it-st');if(s)s.textContent='Сначала выберите фото.';return}
       if(ITNEW){IT.n=DRAFT.items.filter(function(i){return i.cat===IT.cat}).length+1;DRAFT.items.unshift(IT)}
       else{var ix=DRAFT.items.map(function(i){return i.id}).indexOf(IT.id);if(ix>=0)DRAFT.items[ix]=IT}
-      saveDraft();closeSheet();toast('Сохранено. Нажмите «Опубликовать», чтобы увидели клиенты.')}
-    else if(a==='itdel'){itRead();if(!ITDEL){ITDEL=true;itSheet()}else{DRAFT.items=DRAFT.items.filter(function(i){return i.id!==IT.id});saveDraft();closeSheet();toast('Блюдо удалено. Нажмите «Опубликовать».')}}
+      saveDraft();closeSheet();toast(IN_CLAUDE?'Сохранено. Нажмите «Опубликовать», чтобы увидели клиенты.':'Сохраняю…')}
+    else if(a==='itdel'){itRead();if(!ITDEL){ITDEL=true;itSheet()}else{DRAFT.items=DRAFT.items.filter(function(i){return i.id!==IT.id});saveDraft();closeSheet();toast(IN_CLAUDE?'Блюдо удалено. Нажмите «Опубликовать».':'Блюдо удалено, сохраняю…')}}
     else if(a==='ordnew'){ordNew(t.dataset.date)}
     else if(a==='ordsave'){ordRead();
       if(!OF.name){toast('Напишите имя клиента.');return}
       if(!OF.date){toast('Выберите дату.');return}
       var qq={};OF.dishes.forEach(function(id){if((OF.qty||{})[id]>1)qq[id]=OF.qty[id]});var o={id:OF.id,name:OF.name,phone:OF.phone,date:OF.date,time:OF.time,type:OF.type,guests:OF.guests,dishes:OF.dishes,qty:qq,note:OF.note,sum:OF.sum,status:OF.status||'new',ts:OF.ts||Date.now()};
       var wasBusy=!!DRAFT.busy[o.date],msg='Заказ сохранён';
-      if(OF._busy&&!wasBusy){DRAFT.busy[o.date]=1;saveDraft();msg='Заказ сохранён. Нажмите «Опубликовать», чтобы дата стала занятой для клиентов.'}
+      if(OF._busy&&!wasBusy){DRAFT.busy[o.date]=1;saveDraft();msg=IN_CLAUDE?'Заказ сохранён. Нажмите «Опубликовать», чтобы дата стала занятой для клиентов.':'Заказ сохранён, дата отмечена занятой.'}
       osUpsert(o);closeSheet();toast(msg)}
     else if(a==='orddel'){if(!OF._del){OF._del=true;ordRead();ordSheet()}else{osDel(OF.id);closeSheet();toast('Заказ удалён')}}
     else if(a==='pickopen'){ordRead();OPK={cat:'all'};pickSheet()}
@@ -959,14 +986,17 @@ document.addEventListener('click',function(e){
   if(location.hash==='#tv')openTv();else openAdmin();
 });
 /* ---------- shared state + PIN (public version) ---------- */
-function applyState(st){STATE=st;STATE.busy=STATE.busy||{};ALL=STATE.items||[];BYID=mk(ALL);ITEMS=ALL.filter(function(i){return !i.hid});Object.keys(ST.sel).forEach(function(k){if(!BYID[k])delete ST.sel[k]});renderChips();renderMenu();renderSel();busyCheck()}
+function applyState(st){var oldSt=STATE,wasDirty=!!(DRAFT&&dirty());STATE=st;if(DRAFT){if(wasDirty&&!IN_CLAUDE){DRAFT=rebase(oldSt,DRAFT,st);LS.set('assorti.draft',{base:st.rev||0,state:DRAFT})}else{DRAFT=null;LS.del('assorti.draft');loadDraft()}}STATE.busy=STATE.busy||{};ALL=STATE.items||[];BYID=mk(ALL);ITEMS=ALL.filter(function(i){return !i.hid});Object.keys(ST.sel).forEach(function(k){if(!BYID[k])delete ST.sel[k]});renderChips();renderMenu();renderSel();busyCheck()}
 function pinForm(box,w){
   box.innerHTML='<div class="ah"><b>'+(w==='tv'?'Экран кухни':'Админка')+'</b><button class="sm" data-act="adclose">Закрыть</button></div><div class="w" style="max-width:420px;padding-top:40px;display:grid;gap:12px;font-size:16px"><h3 style="margin:0;font:800 22px var(--fd)">'+(w==='tv'?'PIN-код кухни':'PIN-код администратора')+'</h3><div class="f"><input id="pin-in" type="password" inputmode="numeric" autocomplete="off" placeholder="••••"></div><p class="err" id="pin-err" hidden></p><button class="btn p" id="pin-go">Войти</button></div>';
   var go=function(){var v=$('#pin-in').value.trim();if(!v)return;var key=w==='tv'?'assorti.kpin':'assorti.pin';LS.del('assorti.pin');LS.del('assorti.kpin');LS.set(key,v);api('GET','/check').then(function(r){if(w!=='tv'&&!(r&&r.role==='admin')){LS.del('assorti.pin');var er=$('#pin-err');if(er){er.textContent='Это PIN кухни. В админку входят только с PIN администратора.';er.hidden=false}return}if(w==='tv')openTv();else openAdmin()},function(e){LS.del(key);var er=$('#pin-err');if(er){er.textContent=e&&e.pin?'Неверный PIN-код':'Нет связи с сервером. Проверьте интернет.';er.hidden=false}})};
   $('#pin-go').onclick=go;$('#pin-in').onkeydown=function(e){if(e.key==='Enter')go()};
   setTimeout(function(){try{$('#pin-in').focus()}catch(x){}},50);
 }
-if(!IN_CLAUDE){api('GET','/state').then(function(st){if(st&&Array.isArray(st.items)&&(st.rev||0)>=(STATE.rev||0))applyState(st)},function(){})}
+var STATE_OK=IN_CLAUDE,STATE_P=null;
+function loadState(){STATE_P=api('GET','/state').then(function(st){if(st&&Array.isArray(st.items)&&st.items.length)applyState(st);STATE_OK=true;return st},function(e){STATE_P=null;throw e});return STATE_P}
+if(!IN_CLAUDE){loadState().catch(function(){})}
+document.addEventListener('click',function(e){if(!e.target.closest('[data-retrystate]'))return;e.preventDefault();openAdmin()});
 /* ---------- install app (PWA): phone + TV ---------- */
 var UA=navigator.userAgent||'';
 var IS_TV=/SmartTV|SMART-TV|Tizen|Web0S|webOS|NetCast|BRAVIA|Android TV|GoogleTV|AFT[A-Z]|CrKey|HbbTV|Large Screen/i.test(UA)||(/Android/.test(UA)&&!/Mobile/.test(UA)&&!(navigator.maxTouchPoints>0));
