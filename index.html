@@ -403,7 +403,7 @@ var fmtL=function(s){var p=s.split('-'),d=new Date(+p[0],+p[1]-1,+p[2]);return [
 var waUrl=function(num,txt){return 'https://wa.me/'+num+(txt?'?text='+encodeURIComponent(txt):'')};
 
 /* ---------- items ---------- */
-function srcOf(it){return it.im||IM[it.id]||('img/'+it.id+'.webp')}
+function srcOf(it){var m=it.im;if(m&&m.indexOf('/img/')===0)return API+m;return m||IM[it.id]||('img/'+it.id+'.webp')}
 function labelOf(it){return it.t||((CATN[it.cat]||'Блюдо')+' №'+(it.n||''))}
 function mk(items){var m={};items.forEach(function(i){m[i.id]=i});return m}
 var ALL=STATE.items,BYID=mk(ALL);
@@ -597,6 +597,7 @@ function osDel(id){
 var DRAFT=null;
 function loadDraft(){
   var d=LS.get('assorti.draft',null);
+  try{if(d&&d.state&&Array.isArray(d.state.items)&&d.base!==(STATE.rev||0)){var have=mk(STATE.items||[]),lost=LS.get('assorti.lost',[]);if(!Array.isArray(lost))lost=[];var ids=lost.map(function(i){return i.id});d.state.items.forEach(function(i){if(i&&i.id&&String(i.id).charAt(0)==='n'&&!have[i.id]&&ids.indexOf(i.id)<0){lost.push(i);ids.push(i.id)}});LS.set('assorti.lost',lost)}}catch(e){}
   DRAFT=(d&&d.base===(STATE.rev||0))?d.state:JSON.parse(JSON.stringify({v:1,rev:STATE.rev||0,items:STATE.items,busy:STATE.busy}));
   DRAFT.items=DRAFT.items||[];DRAFT.busy=DRAFT.busy||{};
 }
@@ -678,14 +679,16 @@ function openAdmin(){
 var LEFT=false;
 function closeAdmin(){LEFT=true;AD.repOk=false;if(AD.tab==='rep')AD.tab='orders';clearInterval(tvTimer);showLayer('#adm',false);showLayer('#tvv',false);$('#sheet').hidden=true;try{if(location.hash==='#admin'||location.hash==='#tv')location.hash='top'}catch(e){}}
 
+function lostList(){var L=LS.get('assorti.lost',[]);if(!Array.isArray(L)||!DRAFT)return [];var have=mk(DRAFT.items||[]);return L.filter(function(i){return i&&i.id&&!have[i.id]})}
+function lostBanner(){if(IN_CLAUDE)return '';var L=lostList();if(!L.length)return '';return '<div class="note" style="border:2px solid var(--amd)"><b>На этом телефоне найдены блюда, которые не сохранились на сервере: '+L.length+'</b><br>'+L.slice(0,10).map(function(i){return esc(i.t||'Без названия')+(i.p?' — '+esc(i.p):'')}).join(', ')+(L.length>10?' …':'')+'<div class="row" style="margin-top:8px"><button class="sm p" data-act="lostok">Восстановить в меню</button><button class="sm" data-act="lostno">Не нужно</button></div></div>'}
 function adRender(){
   var box=$('#adm');if(box.hidden||!DRAFT)return;
   var scr=box.scrollTop;
   var tabs=[['orders','Заказы'],['cal','Календарь'],['menu','Меню'],['rep','Отчёты']];
   var h='<div class="ah"><b>Админка</b><a class="sm" href="#tv">Экран кухни</a>'+(IN_CLAUDE?'':'<button class="sm" data-pinout>Сменить PIN</button>')+'<button class="sm" data-act="adclose">Выйти</button></div>';
   h+='<nav class="tabs" role="tablist">'+tabs.map(function(t){return '<button role="tab" class="'+(AD.tab===t[0]?'on':'')+'" data-adtab="'+t[0]+'" aria-selected="'+(AD.tab===t[0])+'">'+t[1]+'</button>'}).join('')+'</nav>';
-  h+='<div class="ab w">'+''+(OS.mode==='local'&&OS.started?'<div class="note">Вы не вошли в общее хранилище: заказы сохраняются только на этом устройстве, экран кухни их не увидит.</div>':'')+(OS.err?'<div class="note">Не удаётся загрузить заказы. Проверьте интернет и войдите в Claude.</div>':'')+(AD.tab==='orders'?adOrders():AD.tab==='cal'?adCal():AD.tab==='rep'?adRep():adMenu())+'</div>';
-  if(dirty()){h+='<div class="pbar"><span>'+(IN_CLAUDE?'Есть неопубликованные изменения':'Сохраняю изменения на сервер…')+'</span><button class="sm" data-act="adreset">Сбросить</button><button class="sm p" id="pubbtn" data-act="adpub">'+'Опубликовать'+'</button></div>'}
+  h+='<div class="ab w">'+lostBanner()+(OS.mode==='local'&&OS.started?'<div class="note">Вы не вошли в общее хранилище: заказы сохраняются только на этом устройстве, экран кухни их не увидит.</div>':'')+(OS.err?'<div class="note">Не удаётся загрузить заказы. Проверьте интернет и войдите в Claude.</div>':'')+(AD.tab==='orders'?adOrders():AD.tab==='cal'?adCal():AD.tab==='rep'?adRep():adMenu())+'</div>';
+  if(dirty()){h+='<div class="pbar"><span>'+(IN_CLAUDE?'Есть неопубликованные изменения':'Сохраняю изменения на сервер…')+'</span>'+(IN_CLAUDE?'<button class="sm" data-act="adreset">Сбросить</button>':'')+'<button class="sm p" id="pubbtn" data-act="adpub">'+'Опубликовать'+'</button></div>'}
   box.innerHTML=h;box.scrollTop=scr;
 }
 osCbs.push(function(){if(!$('#adm').hidden&&$('#sheet').hidden)adRender();if(!$('#tvv').hidden)tvRender()});
@@ -942,6 +945,8 @@ document.addEventListener('click',function(e){
     else if(a==='adpub')doPublish();
     else if(a==='adreset'){LS.del('assorti.draft');DRAFT=null;loadDraft();adRender();toast('Изменения сброшены')}
     else if(a==='busytog'){if(DRAFT.busy[AD.day])delete DRAFT.busy[AD.day];else DRAFT.busy[AD.day]=1;saveDraft();adRender()}
+    else if(a==='lostok'){var L=lostList();L.forEach(function(i){DRAFT.items.unshift(i)});LS.del('assorti.lost');saveDraft();adRender();toast('Восстановлено блюд: '+L.length+'. Сохраняю…')}
+    else if(a==='lostno'){LS.del('assorti.lost');adRender()}
     else if(a==='itnew'){ITNEW=true;ITDEL=false;IT={id:'n'+Date.now().toString(36),cat:AD.mcat!=='all'&&AD.mcat!=='hid'?AD.mcat:DATA.cats[0][0],t:'',p:'',n:DRAFT.items.length+1};itSheet()}
     else if(a==='itsave'){itRead();if(ITNEW&&!IT.im){var s=$('#it-st');if(s)s.textContent='Сначала выберите фото.';return}
       if(ITNEW){IT.n=DRAFT.items.filter(function(i){return i.cat===IT.cat}).length+1;DRAFT.items.unshift(IT)}
