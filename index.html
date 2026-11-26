@@ -391,7 +391,7 @@ var $=function(s,r){return (r||document).querySelector(s)};
 var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
 var LS={get:function(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set:function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del:function(k){try{localStorage.removeItem(k)}catch(e){}}};
 var API='https://br-broad-thunder-bhv7ishh-assorti.compute.c-10.eu-central-1.aws.neon.tech';
-function api(m,p,b,px){var h={'Content-Type':'application/json'},pin=px||LS.get('assorti.pin','')||LS.get('assorti.kpin','');if(pin)h['X-Pin']=pin;return fetch(API+p,{method:m,headers:h,body:b?JSON.stringify(b):undefined,cache:'no-store'}).then(function(r){if(r.status===401){var e=new Error('pin');e.pin=1;throw e}if(r.status===409){var c=new Error('conflict');c.conflict=1;throw c}if(!r.ok)throw new Error('http '+r.status);return r.json()})}
+function api(m,p,b,px,to){var h={'Content-Type':'application/json'},pin=px||LS.get('assorti.pin','')||LS.get('assorti.kpin','');if(pin)h['X-Pin']=pin;var ac=null,tm=0;try{ac=new AbortController();tm=setTimeout(function(){try{ac.abort()}catch(x){}},to||(m==='GET'?15000:30000))}catch(x){ac=null}return fetch(API+p,{method:m,headers:h,body:b?JSON.stringify(b):undefined,cache:'no-store',signal:ac?ac.signal:undefined}).then(function(r){clearTimeout(tm);return r},function(e){clearTimeout(tm);throw e}).then(function(r){if(r.status===401){var e=new Error('pin');e.pin=1;throw e}if(r.status===409){var c=new Error('conflict');c.conflict=1;throw c}if(!r.ok)throw new Error('http '+r.status);return r.json()})}
 var CATN={};DATA.cats.forEach(function(c){CATN[c[0]]=c[1]});
 var pad=function(n){return String(n).padStart(2,'0')};
 var ymd=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
@@ -477,6 +477,20 @@ function lbGo(i){lbI=(i+lbList.length)%lbList.length;lbRender()}
 function lbOpen(id){lbList=list();lbI=Math.max(0,lbList.map(function(x){return x.id}).indexOf(id));$('#lbx').hidden=false;document.body.style.overflow='hidden';lbRender()}
 function lbClose(){$('#lbx').hidden=true;$('#lbx').innerHTML='';document.body.style.overflow=''}
 
+/* ---------- site requests: queue + retry (no lost orders) ---------- */
+var RQ_INF={};
+function rqList(){var q=LS.get('assorti.rq',[]);return Array.isArray(q)?q:[]}
+function rqSend(){if(IN_CLAUDE)return;rqList().forEach(function(x){if(!x||!x.rid||RQ_INF[x.rid])return;RQ_INF[x.rid]=1;
+  var to=null;try{var ac=new AbortController();to=setTimeout(function(){try{ac.abort()}catch(e){}},20000)}catch(e){ac=null}
+  fetch(API+'/request',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,cache:'no-store',signal:ac?ac.signal:undefined,body:JSON.stringify(x.b)}).then(function(r){
+    if(r.ok||r.status===400||r.status===413){LS.set('assorti.rq',rqList().filter(function(y){return y.rid!==x.rid}))}
+  }).catch(function(){}).then(function(){clearTimeout(to);delete RQ_INF[x.rid]})})}
+function rqAdd(b){var k=JSON.stringify(b),last=LS.get('assorti.rqlast',null),rid;
+  if(last&&last.k===k&&Date.now()-last.t<15*60000)rid=last.rid;else rid=Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  LS.set('assorti.rqlast',{k:k,rid:rid,t:Date.now()});b.rid=rid;
+  var q=rqList().filter(function(y){return y.rid!==rid});q.push({rid:rid,b:b,t:Date.now()});LS.set('assorti.rq',q.slice(-30));rqSend()}
+if(!IN_CLAUDE){setTimeout(rqSend,1500);setInterval(rqSend,15000);window.addEventListener('online',rqSend);document.addEventListener('visibilitychange',function(){if(!document.hidden)rqSend()})}
+
 /* ---------- request form ---------- */
 var F={name:'#f-name',phone:'#f-phone',type:'#f-type',date:'#f-date',guests:'#f-guests',note:'#f-note'};
 function busyCheck(){var d=ST.me.date;$('#busywarn').hidden=!(d&&STATE.busy[d])}
@@ -498,7 +512,7 @@ $('#send').addEventListener('click',function(){
   if(a.length){t+='\n\nБлюда:\n'+a.map(function(id,k){var it=BYID[id];var q=ST.sel[id]>1?ST.sel[id]:1,p=pnum(it.p);return (k+1)+'. '+labelOf(it)+' — '+q+' шт.'+(p?' × '+money(p)+' = '+money(p*q):' (цену уточнить)')}).join('\n');var R=calcSum(a,ST.sel,function(id){return BYID[id]});t+='\n\nПозиций: '+a.length+', всего: '+R.c+' шт.';if(R.t)t+='\nОБЩАЯ СУММА: '+money(R.t)+(R.u?' (без '+R.u+' блюд без цены)':'');}
   if(String(m.note||'').trim())t+='\n\nПожелания: '+m.note.trim();
   var url=waUrl(WA,t);
-  if(!IN_CLAUDE){try{fetch(API+'/request',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({name:m.name.trim(),phone:m.phone.trim(),date:m.date||'',type:m.type,guests:m.guests||'',note:String(m.note||'').trim(),dishes:a,qty:(function(){var o={};a.forEach(function(id){if(ST.sel[id]>1)o[id]=ST.sel[id]});return o})()})}).catch(function(){})}catch(e){}}
+  if(!IN_CLAUDE){try{rqAdd({name:m.name.trim(),phone:m.phone.trim(),date:m.date||'',type:m.type,guests:m.guests||'',note:String(m.note||'').trim(),dishes:a,qty:(function(){var o={};a.forEach(function(id){if(ST.sel[id]>1)o[id]=ST.sel[id]});return o})()})}catch(e){}}
   try{var l=document.createElement('a');l.href=url;l.target='_blank';l.rel='noopener';document.body.appendChild(l);l.click();l.remove()}catch(e){}
   $('#form').hidden=true;var d=$('#done');d.hidden=false;
   d.innerHTML='<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#F6A81C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5"/></svg><h3>Заявка готова</h3><p>Откройте WhatsApp и нажмите «Отправить», чтобы шеф получил вашу заявку.</p><a class="btn p" href="'+esc(url)+'" target="_blank" rel="noopener">Открыть WhatsApp</a><button class="btn" data-act="again">Вернуться к заявке</button>';
@@ -537,10 +551,14 @@ function osStart(){
   if(OS.started)return;OS.started=true;
   if(!IN_CLAUDE){
     OS.mode='api';
-    var pull=function(){return api('GET','/orders').then(function(l){OS.list=Array.isArray(l)?l:[];OS.loaded=true;OS.err=false;osEmit()},function(){OS.err=true;OS.loaded=true;osEmit()})};
+    var busy=false;
+    var pull=function(){if(busy)return Promise.resolve();busy=true;return api('GET','/orders').then(function(l){if(Array.isArray(l)){OS.list=l;OS.at=Date.now()}OS.loaded=true;OS.err=false;osEmit()},function(){OS.err=true;OS.loaded=true;osEmit()}).then(function(){busy=false})};
     var loc=LS.get('assorti.orders',[]);
     Promise.all((Array.isArray(loc)?loc:[]).map(function(o){return o&&o.id?api('PUT','/orders/'+o.id,o):null})).then(function(){LS.del('assorti.orders')},function(){}).then(pull);
-    setInterval(function(){if(!document.hidden)pull()},8000);
+    var iv=function(){var hr=new Date().getHours();return hr<7?60000:8000};
+    (function loop(){setTimeout(function(){try{if(!document.hidden)pull()}catch(x){busy=false}loop()},iv())})();
+    document.addEventListener('visibilitychange',function(){if(!document.hidden)pull()});
+    window.addEventListener('online',function(){pull()});
     return;
   }
   if(CAP.db){
@@ -872,7 +890,7 @@ function tvRender(){
   var col=function(st,title){var a=today;return '<section class="tc '+st+'"><h2><span>'+title+'</span><span>'+a.length+'</span></h2><div class="bd">'+(a.length?a.map(function(o){return tvOrder(o)}).join(''):'<div class="em">Пусто</div>')+'</div></section>'};
   var nx=L.filter(function(o){return o.date>t&&(o.status||'new')==='new'}).slice(0,8);
   var h='<div class="tvh"><h1>Заказы на сегодня</h1><span class="dt">'+esc(fmtL(t))+'</span><span class="ck2">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</span><button class="sm x" data-inst="fs">'+(document.fullscreenElement||document.webkitFullscreenElement?'Свернуть':'Во весь экран')+'</button>'+(IN_CLAUDE?'':'<button class="sm" data-pinout>Сменить PIN</button>')+'<button class="sm" data-act="adclose">Выйти</button></div>';
-  if(OS.err)h+='<div class="note">Нет связи с хранилищем заказов.</div>';
+  if(OS.err)h+='<div class="note">Нет связи с сервером'+(OS.at?' (последнее обновление в '+pad(new Date(OS.at).getHours())+':'+pad(new Date(OS.at).getMinutes())+')':'')+'. Экран обновится сам, как только появится интернет.</div>';
   if(OS.mode==='local')h+='<div class="note">Экран работает без общего входа: показаны только заказы, созданные на этом устройстве.</div>';
   h+='<div class="tvm">'+col('new','Новые')+'<section class="tc next"><h2><span>Ближайшие дни</span></h2><div class="bd">'+(nx.length?nx.map(function(o){return tvOrder(o,true)}).join(''):'<div class="em">Заказов на ближайшие дни нет</div>')+'</div></section></div>';
   var sc=[].map.call(box.querySelectorAll('.bd'),function(b){return b.scrollTop});
@@ -880,6 +898,7 @@ function tvRender(){
   [].forEach.call(box.querySelectorAll('.bd'),function(b,i){b.scrollTop=sc[i]||0});
 }
 var tvScroll=null,tvSt={};
+var T0=Date.now();setInterval(function(){try{var d=new Date();if(location.hash==='#tv'&&d.getHours()===5&&Date.now()-T0>3600000&&navigator.onLine!==false)location.reload()}catch(e){}},60000);
 function tvAuto(){clearInterval(tvScroll);tvSt={};tvScroll=setInterval(function(){if($('#tvv').hidden)return;[].forEach.call(document.querySelectorAll('#tvv .bd'),function(b,i){var max=b.scrollHeight-b.clientHeight,s=tvSt[i]||(tvSt[i]={w:75,top:0});if(max<=2){b.scrollTop=0;return}if(s.w>0){s.w--;return}if(s.top){b.scrollTop=0;s.y=0;s.top=0;s.w=75;return}if(s.y==null||Math.abs(s.y-b.scrollTop)>3)s.y=b.scrollTop;if(b.scrollTop>=max-1){s.top=1;s.w=75;return}s.y+=1;b.scrollTop=s.y})},40)}
 
 /* =====================================================================
