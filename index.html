@@ -459,7 +459,7 @@ function refreshCards(){
 function ids(){return Object.keys(ST.sel).filter(function(k){return BYID[k]&&!BYID[k].hid})}
 function renderSel(){
   var a=ids(),b=$('#bar');
-  $('#selbox').innerHTML=a.length?'<div class="sel" style="display:grid;gap:10px">Выбрано блюд: '+a.length+'<div class="ql">'+a.map(function(id){var it=BYID[id],q=ST.sel[id]>1?ST.sel[id]:1;return '<div class="qr"><img src="'+esc(srcOf(it))+'" alt=""><span>'+esc(labelOf(it))+(it.p?'<br><small style="color:var(--mute);font-weight:600">'+esc(it.p)+'</small>':'')+'</span><button class="qb" data-sdec="'+esc(id)+'" aria-label="'+(q>1?'Меньше':'Убрать')+'">'+(q>1?'−':'×')+'</button><b>'+q+'</b><button class="qb p" data-sinc="'+esc(id)+'" aria-label="Больше">+</button></div>'}).join('')+'</div></div>':'<div class="sel">Блюда пока не выбраны. Выберите их в меню выше или напишите пожелания.</div>';
+  $('#selbox').innerHTML=a.length?'<div class="sel" style="display:grid;gap:10px">Выбрано блюд: '+a.length+'<div class="ql">'+a.map(function(id){var it=BYID[id],q=ST.sel[id]>1?ST.sel[id]:1;return '<div class="qr"><img src="'+esc(srcOf(it))+'" alt=""><span>'+esc(labelOf(it))+(it.p?'<br><small style="color:var(--mute);font-weight:600">'+(pnum(it.p)?esc(money(pnum(it.p)))+(q>1?' × '+q+' = '+esc(money(pnum(it.p)*q)):''):esc(it.p))+'</small>':'')+'</span><button class="qb" data-sdec="'+esc(id)+'" aria-label="'+(q>1?'Меньше':'Убрать')+'">'+(q>1?'−':'×')+'</button><b>'+q+'</b><button class="qb p" data-sinc="'+esc(id)+'" aria-label="Больше">+</button></div>'}).join('')+'</div>'+(function(){var r=calcSum(a,ST.sel,function(id){return BYID[id]});return r.t?'<div style="display:flex;justify-content:space-between;font-weight:800;font-size:17px;border-top:1px solid rgba(0,0,0,.1);padding-top:10px"><span>Итого ('+r.c+' шт.)</span><span>'+money(r.t)+'</span></div>'+(r.u?'<small style="color:var(--mute)">Без учёта блюд без цены: '+r.u+'</small>':''):''})()+'</div>':'<div class="sel">Блюда пока не выбраны. Выберите их в меню выше или напишите пожелания.</div>';
   b.hidden=!a.length;
   b.innerHTML=a.length?'<button data-act="goform"><span><i>'+a.length+'</i>в заявке</span><span>Оформить →</span></button>':'';
 }
@@ -495,7 +495,7 @@ $('#send').addEventListener('click',function(){
   t+='Заказ (Ассорти)\nИмя: '+m.name.trim()+'\nТелефон: '+m.phone.trim()+'\nПолучение: '+m.type;
   if(m.date)t+='\nДата: '+m.date;
   if(m.guests)t+='\nГостей: '+m.guests;
-  if(a.length)t+='\n\nБлюда:\n'+a.map(function(id,k){var it=BYID[id];var q=ST.sel[id]>1?ST.sel[id]:1;return (k+1)+'. '+labelOf(it)+(q>1?' × '+q:'')+(it.p?' — '+it.p:'')}).join('\n');
+  if(a.length){t+='\n\nБлюда:\n'+a.map(function(id,k){var it=BYID[id];var q=ST.sel[id]>1?ST.sel[id]:1,p=pnum(it.p);return (k+1)+'. '+labelOf(it)+' — '+q+' шт.'+(p?' × '+money(p)+' = '+money(p*q):' (цену уточнить)')}).join('\n');var R=calcSum(a,ST.sel,function(id){return BYID[id]});t+='\n\nПозиций: '+a.length+', всего: '+R.c+' шт.';if(R.t)t+='\nОБЩАЯ СУММА: '+money(R.t)+(R.u?' (без '+R.u+' блюд без цены)':'');}
   if(String(m.note||'').trim())t+='\n\nПожелания: '+m.note.trim();
   var url=waUrl(WA,t);
   if(!IN_CLAUDE){try{fetch(API+'/request',{method:'POST',headers:{'Content-Type':'application/json'},keepalive:true,body:JSON.stringify({name:m.name.trim(),phone:m.phone.trim(),date:m.date||'',type:m.type,guests:m.guests||'',note:String(m.note||'').trim(),dishes:a,qty:(function(){var o={};a.forEach(function(id){if(ST.sel[id]>1)o[id]=ST.sel[id]});return o})()})}).catch(function(){})}catch(e){}}
@@ -693,7 +693,7 @@ function dishThumbs(o,n){
 function orderCard(o){
   var dg=String(o.phone||'').replace(/\D/g,'');
   return '<div class="card oc '+esc(o.status||'new')+'"><div class="t"><b>'+esc(o.name||'Без имени')+(o.src==='site'?' <small style="font:700 11px var(--fd);padding:3px 8px;border-radius:99px;background:var(--cream);color:var(--amd);vertical-align:2px">с сайта</small>':'')+'</b><span>'+esc(fmtD(o.date))+(o.time?', '+esc(o.time):'')+'</span></div>'+
-  '<div class="m">'+esc(o.type||'')+(o.guests?' · '+esc(o.guests)+' гостей':'')+(o.sum?' · '+esc(o.sum):'')+(o.phone?' · <a href="https://wa.me/'+esc(dg)+'" target="_blank" rel="noopener">'+esc(o.phone)+'</a>':'')+'</div>'+
+  '<div class="m">'+esc(o.type||'')+(o.guests?' · '+esc(o.guests)+' гостей':'')+(sumOf(o)?' · '+esc(money(sumOf(o))):'')+(o.phone?' · <a href="https://wa.me/'+esc(dg)+'" target="_blank" rel="noopener">'+esc(o.phone)+'</a>':'')+'</div>'+
   dishThumbs(o,10)+(o.note?'<div class="m">'+esc(o.note)+'</div>':'')+
   '<div class="seg">'+STL.map(function(s){return '<button data-st="'+s[0]+'" data-ost="'+esc(o.id)+'" class="'+((o.status||'new')===s[0]?'on':'')+'">'+s[1]+'</button>'}).join('')+'</div>'+
   (o.status==='done'?'<div class="note" style="margin:0">Заказ выдан, ждём возврат посуды. Когда посуду вернут, нажмите «Завершён».</div>':'')+'<div class="row"><button class="sm" data-oedit="'+esc(o.id)+'">Изменить</button></div></div>';
@@ -740,8 +740,10 @@ function repPin(){
   $('#rp-go').onclick=go;$('#rp-in').onkeydown=function(e){if(e.key==='Enter')go()};
   setTimeout(function(){try{$('#rp-in').focus()}catch(x){}},50);
 }
+function pnum(p){var n=parseInt(String(p==null?'':p).replace(/\D/g,''),10);return isNaN(n)?0:n}
+function calcSum(dishes,qty,get){var t=0,u=0,c=0;(dishes||[]).forEach(function(id){var it=get(id);if(!it)return;var q=(qty&&qty[id]>1)?qty[id]:1,p=pnum(it.p);c+=q;if(p)t+=p*q;else u++});return {t:t,u:u,c:c}}
 function money(n){return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,' ')+' ₸'}
-function sumOf(o){var n=parseInt(String(o.sum||'').replace(/\D/g,''),10);return isNaN(n)?0:n}
+function sumOf(o){var n=parseInt(String(o.sum||'').replace(/\D/g,''),10);if(!isNaN(n))return n;return calcSum(o.dishes,o.qty,itemById).t}
 function adRep(){
   var per=AD.rper||'month',now=new Date(),start;
   if(per==='today')start=new Date(now.getFullYear(),now.getMonth(),now.getDate());
