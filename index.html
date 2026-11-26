@@ -757,9 +757,9 @@ function adMenu(){
 
 /* reports tab */
 function repPin(){
-  openSheet('<h3>PIN администратора</h3><p class="sub" style="margin:0">Отчёты и выручка открываются только с PIN администратора.</p><div class="f"><input id="rp-in" type="password" inputmode="numeric" autocomplete="off" placeholder="••••"></div><p class="err" id="rp-err" hidden></p><div class="row"><button class="sm p" id="rp-go">Открыть отчёты</button><button class="sm" data-act="sheetclose">Отмена</button></div>');
+  openSheet('<h3>Пароль отчётов</h3><p class="sub" style="margin:0">Отчёты и выручка открываются только с паролем отчётов.</p><div class="f"><input id="rp-in" type="password" inputmode="numeric" autocomplete="off" placeholder="••••"></div><p class="err" id="rp-err" hidden></p><div class="row"><button class="sm p" id="rp-go">Открыть отчёты</button><button class="sm" data-act="sheetclose">Отмена</button></div>');
   var err=function(m){var e=$('#rp-err');if(e){e.textContent=m;e.hidden=false}};
-  var go=function(){var v=$('#rp-in').value.trim();if(!v)return;api('GET','/check',null,v).then(function(r){if(r&&r.role==='admin'){AD.repOk=true;AD.tab='rep';$('#sheet').hidden=true;$('#sheet').innerHTML='';adRender()}else err('Неверный PIN администратора.')},function(e){err(e&&e.pin?'Неверный PIN администратора.':'Нет связи с сервером. Проверьте интернет.')})};
+  var go=function(){var v=$('#rp-in').value.trim();if(!v)return;api('GET','/check-report',null,v).then(function(r){if(r&&r.ok){AD.repOk=true;AD.tab='rep';$('#sheet').hidden=true;$('#sheet').innerHTML='';adRender()}else err('Неверный пароль отчётов.')},function(e){err(e&&e.pin?'Неверный пароль отчётов.':'Нет связи с сервером. Проверьте интернет.')})};
   $('#rp-go').onclick=go;$('#rp-in').onkeydown=function(e){if(e.key==='Enter')go()};
   setTimeout(function(){try{$('#rp-in').focus()}catch(x){}},50);
 }
